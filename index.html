@@ -1,0 +1,247 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>filecache.go by gokyle</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>filecache.go</h1>
+        <p>A simple file cache implementation in Go.</p>
+
+        <p class="view"><a href="https://github.com/gokyle/filecache">View the Project on GitHub <small>gokyle/filecache</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/gokyle/filecache/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/gokyle/filecache/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/gokyle/filecache">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h2>Overview</h2>
+
+<p>A file cache can be created with either the <code>NewDefaultCache()</code> function to
+get a cache with the defaults set, or <code>NewCache()</code> to get a new cache with
+<code>0</code> values for everything; you will not be able to store items in this cache
+until the values are changed; specifically, at a minimum, you should set
+the <code>MaxItems</code> field to be &gt; 0.</p>
+
+<p>Let's start with a basic example; we'll create a basic cache and give it a
+maximum item size of 128M:</p>
+
+<pre><code>cache := filecache.NewDefaultCache()
+cache.MaxSize = 128 * filecache.Megabyte
+cache.Start()
+</code></pre>
+
+<p>The <code>Kilobyte</code>, <code>Megabyte</code>, and <code>Gigabyte</code> constants are provided as a
+convience when setting cache sizes.</p>
+
+<p>You can transparently read and cache a file using <code>RetrieveFile  (and
+</code>RetrieveFileString<code>); if the file is not in the cache, it will be read
+from the file system and returned; the cache will start a background
+thread to cache the file. Similarly, the</code>WriterFile<code>method will write
+the file to the specified</code>io.Writer<code>. For example, you could create a
+</code>FileServer` function along the lines of </p>
+
+<pre><code>   func FileServer(w http.ResponseWriter, r *http.Request) {
+           path := r.URL.Path
+           if len(path) &gt; 1 {
+                   path = path[1:len(path)]
+           } else {
+                   path = "."
+           }
+
+           err := cache.WriteFile(w, path)
+           if err == nil {
+                   ServerError(w, r)
+           } else if err == filecache.ItemIsDirectory {
+                   DirServer(w, r)
+           }
+      }
+</code></pre>
+
+<p>When <code>cache.Start()</code> is called, a goroutine is launched in the background
+that routinely checks the cache for expired items. The delay between
+runs is specified as the number of seconds given by <code>cache.Every</code> ("every
+<code>cache.Every</code> seconds, check for expired items"). There are three criteria
+used to determine whether an item in the cache should be expired; they are:</p>
+
+<ol>
+<li>Has the file been modified on disk? (The cache stores the last time
+  of modification at the time of caching, and compares that to the
+  file's current last modification time).</li>
+<li>Has the file been in the cache for longer than the maximum allowed
+  time? This check can be disabled by setting the cache's <code>ExpireItem</code>
+  field to <code>0</code>; in this case, the cache will only expire items that have
+  been modified since caching or that satisfy the next condition.</li>
+<li>Is the cache at capacity? When a file is being cached, a check is
+  made to see if the cache is currently filled. If it is, the item that
+  was last accessed the longest ago is expired and the new item takes
+  its place. When loading items asynchronously, this check might miss
+  the fact that the cache will be at capacity; the background scanner
+  performs a check after its regular checks to ensure that the cache is
+  not at capacity.</li>
+</ol><p>The background scanner can be disabled by setting <code>cache.Every</code> to 0; if so,
+cache expiration is only done when the cache is at capacity.</p>
+
+<p>Once the cache is no longer needed, a call to <code>cache.Stop()</code> will close down
+the channels and signal the background scanner that it should stop.</p>
+
+<h2>Usage</h2>
+
+<h3>Initialisation and Startup</h3>
+
+<p>The public fields of the <code>FileCache</code> struct are:</p>
+
+<pre><code>    MaxItems   int   // Maximum number of files to cache
+    MaxSize    int64 // Maximum file size to store
+    ExpireItem int   // Seconds a file should be cached for
+    Every      int   // Run an expiration check Every seconds
+</code></pre>
+
+<p>You can create a new file cache with one of two functions:</p>
+
+<ul>
+<li>
+<code>NewCache()</code>: creates a new bare repository that just has the underlying
+cache structure initialised. The public fields are all set to <code>0</code>, which is
+very likely not useful (at a minimum, a <code>MaxItems</code> of <code>0</code> means no items can
+or will be stored in the cache).</li>
+<li>
+<code>NewDefaultCache()</code> returns a new file cache initialised to some basic
+defaults. The defaults are:
+<code>
+DefaultExpireItem int   = 300 // 5 minutes
+DefaultMaxSize    int64 = 32 * Megabyte
+DefaultMaxItems   int   = 32
+DefaultEvery      int   = 60 // 1 minute
+</code>
+</li>
+</ul><p>These defaults are public variables, and you may change them to more useful
+values to your program.</p>
+
+<p>Once the cache has been initialised, it needs to be started using the
+<code>Start()</code> method. This is important for initialising the goroutine responsible
+for ensuring the cache remains updated, as well as setting up the asynchronous
+caching goroutine. The <code>Active</code> method returns true if the cache is currently
+running.</p>
+
+<h3>Cache Information</h3>
+
+<p>The <code>FileCache</code> struct has several methods to return information about the
+cache:</p>
+
+<ul>
+<li>
+<code>Size()</code> returns the number of files that are currently in the cache.</li>
+<li>
+<code>FileSize()</code> returns the sum of the file sizes stored in the cache; each 
+item on the cache takes up approximately 32 bytes on top of this as overhead.</li>
+<li>
+<code>StoredFiles()</code> returns a list of strings containing the names of the files
+currently cached. These are not sorted in any way.</li>
+<li>
+<code>InCache(name string)</code> returns true if <code>name</code> is in the cache.</li>
+</ul><h3>Primary Methods</h3>
+
+<p>While the cache has several methods available, there are three main functions
+you will likely use to interact with cache apart from initialisation and
+shutdown. All three of them provide transparent access to files; if the file
+is in the cache, it is read from the cache. Otherwise, the file is checked
+to make sure it is not a directory or uncacheable file, returning an error
+if this is the case. Finally, a goroutine is launched to cache the file in
+the background while the file is read and its contents provided directly from
+the filesystem.</p>
+
+<ul>
+<li>
+<code>RetrieveFile(name string) ([]byte, error)</code> is used to get the contents of
+file as a byte slice.</li>
+<li>
+<code>RetrieveFileString(name string) (string, error)</code> is used to get the
+contents of a file as a string.</li>
+<li>
+<code>WriteFile(w io.Writer, name) error</code> is used to write the contents of the
+file to the <code>io.Writer</code> interface given.</li>
+</ul><p>Most people can now skip to the <em>Shutting Down</em> section.</p>
+
+<h3>Reading from the Cache</h3>
+
+<p>If you are certain a file has been cached, and you want to access it directly
+from the cache, you can use these functions:</p>
+
+<ul>
+<li>
+<code>GetItem(name string) ([]byte, bool)</code> will retrieve a byte slice containing
+the contents of the file and a boolean indiciating whether the file was in
+the cache. If it is not in the cache, the byte slice will be empty and no
+attempt is made to add the file to the cache.</li>
+<li>
+<code>GetItemString(name string) (string, bool)</code> is the same as <code>GetItem</code> except
+that it returns a string in place of the byte slice.</li>
+<li>
+<code>WriteItem(w io.Writer, name string) (err error)</code> is the same as <code>WriteFile</code>
+except that no attempt is made to add the file to cache if it is not present.</li>
+</ul><h3>Add to the Cache</h3>
+
+<p>You can cache files without reading them using the two caching functions:</p>
+
+<ul>
+<li>
+<code>Cache(name string)</code> will cache the file in the background. It returns
+immediately and errors are not reported; you can determine if the item is
+in the cache with the <code>InCache</code> method; note that as this is a background
+cache, the file may not immediately be cached.</li>
+<li>
+<code>CacheNow(name string) error</code> will immediately cache the file and block
+until it has been cached, or until an error is returned.</li>
+</ul><h3>Removing from the Cache</h3>
+
+<p>The <code>Remove(name string) (bool, error)</code> method will remove the file named
+from the cache. If the file was not in the cache or could not be removed,
+it returns false.</p>
+
+<h3>Shutting Down</h3>
+
+<p>Once you are done with the cache, the <code>Stop</code> method takes care of all the
+necessary cleanup.</p>
+
+<h2>License</h2>
+
+<p><code>filecache</code> is released under the ISC license:</p>
+
+<pre><code>Copyright (c) 2012 Kyle Isom &lt;kyle@tyrfingr.is&gt;
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above 
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
+</code></pre>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/gokyle">gokyle</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
