@@ -57,7 +57,10 @@ func writeTempFile(t *testing.T, contents string) string {
 func TestCacheStartStop(t *testing.T) {
 	fmt.Printf("[+] testing cache start up and shutdown: ")
 	cache := NewDefaultCache()
-	cache.Start()
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
 	time.Sleep(1 * time.Second)
 	cache.Stop()
 	fmt.Println("ok")
@@ -66,7 +69,10 @@ func TestCacheStartStop(t *testing.T) {
 func TestTimeExpiration(t *testing.T) {
 	fmt.Printf("[+] ensure item expires after ExpireItem: ")
 	cache := NewDefaultCache()
-	cache.Start()
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
 	name := "expired"
 	itm := getTimeExpiredCacheItem()
 	cache._add_cache_item(name, itm)
@@ -83,7 +89,11 @@ func TestTimeExpiration(t *testing.T) {
 func TestFileChanged(t *testing.T) {
 	fmt.Printf("[+] validate file modification expires item: ")
 	cache := NewDefaultCache()
-	cache.Start()
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
+
 	name := writeTempFile(t, "lorem ipsum blah blah")
 	if name == "" {
 		fmt.Println("failed!")
@@ -119,9 +129,12 @@ func TestFileChanged(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	cache := NewDefaultCache()
-	cache.Start()
 	fmt.Printf("[+] testing asynchronous file caching: ")
+	cache := NewDefaultCache()
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
 	name := writeTempFile(t, "lorem ipsum akldfjsdlf")
 	if name == "" {
 		cache.Stop()
@@ -170,11 +183,15 @@ func TestCache(t *testing.T) {
 }
 
 func TestExpireAll(t *testing.T) {
+	fmt.Printf("[+] testing background expiration: ")
 	cache := NewDefaultCache()
 	cache.Every = 1
 	cache.ExpireItem = 2
-	cache.Start()
-	fmt.Printf("[+] testing background expiration: ")
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
+
 	name := writeTempFile(t, "this is a first file and some stuff should go here")
 	if name == "" {
 		cache.Stop()
@@ -226,12 +243,15 @@ func destroyNames(names []string) {
 }
 
 func TestExpireOldest(t *testing.T) {
+	fmt.Printf("[+] validating item limit on cache: ")
 	cache := NewDefaultCache()
 	cache.MaxItems = 5
-	cache.Start()
-	names := make([]string, 0)
-	fmt.Printf("[+] validating item limit on cache: ")
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
 
+	names := make([]string, 0)
 	for i := 0; i < 1000; i++ {
 		name := writeTempFile(t, fmt.Sprintf("file number %d\n", i))
 		if t.Failed() {
@@ -255,12 +275,15 @@ func TestExpireOldest(t *testing.T) {
 }
 
 func TestNeverExpire(t *testing.T) {
+	fmt.Printf("[+] validating no time limit expirations: ")
 	cache := NewDefaultCache()
 	cache.ExpireItem = 0
-	cache.Every = 1
-	cache.Start()
+        cache.Every = 1
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
 
-	fmt.Printf("[+] validating no time limit expirations: ")
 	tmpf, err := ioutil.TempFile("", "fctest")
 	if err != nil {
 		fmt.Println("failed")
@@ -279,7 +302,7 @@ func TestNeverExpire(t *testing.T) {
 		t.FailNow()
 	}
 	cache.Cache(name)
-	time.Sleep(2 * time.Second)
+        time.Sleep(2 * time.Second)
 	if !cache.InCache(name) {
 		fmt.Println("failed")
 		fmt.Println("[!] item should not have been expired")
@@ -292,79 +315,89 @@ func TestNeverExpire(t *testing.T) {
 }
 
 func BenchmarkAsyncCaching(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		cache := NewDefaultCache()
-		cache.Start()
-		cache.Cache("filecache.go")
-		for {
-			if cache.InCache("filecache.go") {
-				break
-			}
-			<-time.After(10 * time.Microsecond)
-		}
-		cache.Remove("filecache.go")
-		cache.Stop()
-	}
+        for i := 0; i < b.N; i++ {
+                cache := NewDefaultCache()
+	if err := cache.Start(); err != nil {
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
+
+                cache.Cache("filecache.go")
+                for {
+                        if cache.InCache("filecache.go") {
+                                break
+                        }
+                        <-time.After(10 * time.Microsecond)
+                }
+                cache.Remove("filecache.go")
+                cache.Stop()
+        }
 }
 
 func TestCacheReadFile(t *testing.T) {
-	fmt.Printf("[+] testing transparent file reads: ")
-	testFile := "filecache.go"
-	cache := NewDefaultCache()
-	cache.Start()
-	if cache.InCache(testFile) {
-		fmt.Println("failed")
-		fmt.Println("[!] file should not be in cache yet")
-		cache.Stop()
-		t.FailNow()
-	}
+        fmt.Printf("[+] testing transparent file reads: ")
+        testFile := "filecache.go"
+        cache := NewDefaultCache()
+	if err := cache.Start(); err != nil {
+                fmt.Println("failed")
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
 
-	out, err := cache.ReadFile(testFile)
-	if (err != nil && err != ItemNotInCache) || !ValidateDataMatchesFile(out, testFile) {
-		fmt.Println("failed")
-		fmt.Printf("[!] transparent file read has failed: ")
-		if err != nil {
-			fmt.Println(err.Error())
-		} else {
-			fmt.Println("file does not match cache contents")
-		}
-		cache.Stop()
-		t.FailNow()
-	}
+        if cache.InCache(testFile) {
+                fmt.Println("failed")
+                fmt.Println("[!] file should not be in cache yet")
+                cache.Stop()
+                t.FailNow()
+        }
 
-	time.Sleep(10 * time.Millisecond)
-	out, err = cache.ReadFile(testFile)
-	if err != nil || !ValidateDataMatchesFile(out, testFile) {
-		fmt.Println("failed")
-		fmt.Println("[!] ReadFile has failed")
-		t.Fail()
-	} else {
-		fmt.Println("ok")
-	}
-	cache.Stop()
+        out, err := cache.ReadFile(testFile)
+        if (err != nil && err != ItemNotInCache) || !ValidateDataMatchesFile(out, testFile) {
+                fmt.Println("failed")
+                fmt.Printf("[!] transparent file read has failed: ")
+                if err != nil {
+                        fmt.Println(err.Error())
+                } else {
+                        fmt.Println("file does not match cache contents")
+                }
+                cache.Stop()
+                t.FailNow()
+        }
+
+        time.Sleep(10 * time.Millisecond)
+        out, err = cache.ReadFile(testFile)
+        if err != nil || !ValidateDataMatchesFile(out, testFile) {
+                fmt.Println("failed")
+                fmt.Println("[!] ReadFile has failed")
+                t.Fail()
+        } else {
+                fmt.Println("ok")
+        }
+        cache.Stop()
 }
 
 func BenchmarkSyncCaching(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		cache := NewDefaultCache()
-		cache.Start()
-		cache.CacheNow("filecache.go")
-		cache.Stop()
-	}
+        for i := 0; i < b.N; i++ {
+                cache := NewDefaultCache()
+
+	if err := cache.Start(); err != nil {
+                fmt.Println("[!] cache failed to start: ", err.Error())
+        }
+                cache.CacheNow("filecache.go")
+                cache.Stop()
+        }
 }
 
 func ValidateDataMatchesFile(out []byte, filename string) bool {
-	fileData, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return false
-	} else if len(fileData) != len(out) {
-		return false
-	}
+        fileData, err := ioutil.ReadFile(filename)
+        if err != nil {
+                return false
+        } else if len(fileData) != len(out) {
+                return false
+        }
 
-	for i := 0; i < len(out); i++ {
-		if out[i] != fileData[i] {
-			return false
-		}
-	}
-	return true
+        for i := 0; i < len(out); i++ {
+                if out[i] != fileData[i] {
+                        return false
+                }
+        }
+        return true
 }
