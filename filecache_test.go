@@ -257,7 +257,7 @@ func TestExpireOldest(t *testing.T) {
 func TestNeverExpire(t *testing.T) {
 	cache := NewDefaultCache()
 	cache.ExpireItem = 0
-        cache.Every = 1
+	cache.Every = 1
 	cache.Start()
 
 	fmt.Printf("[+] validating no time limit expirations: ")
@@ -279,7 +279,7 @@ func TestNeverExpire(t *testing.T) {
 		t.FailNow()
 	}
 	cache.Cache(name)
-        time.Sleep(2 * time.Second)
+	time.Sleep(2 * time.Second)
 	if !cache.InCache(name) {
 		fmt.Println("failed")
 		fmt.Println("[!] item should not have been expired")
@@ -292,26 +292,79 @@ func TestNeverExpire(t *testing.T) {
 }
 
 func BenchmarkAsyncCaching(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-                cache := NewDefaultCache()
-                cache.Start()
-                cache.Cache("filecache.go")
-                for {
-                        if cache.InCache("filecache.go") {
-                                break
-                        }
-                        <-time.After(10 * time.Microsecond)
-                }
-                cache.Remove("filecache.go")
-                cache.Stop()
-        }
+	for i := 0; i < b.N; i++ {
+		cache := NewDefaultCache()
+		cache.Start()
+		cache.Cache("filecache.go")
+		for {
+			if cache.InCache("filecache.go") {
+				break
+			}
+			<-time.After(10 * time.Microsecond)
+		}
+		cache.Remove("filecache.go")
+		cache.Stop()
+	}
+}
+
+func TestCacheReadFile(t *testing.T) {
+	fmt.Printf("[+] testing transparent file reads: ")
+	testFile := "filecache.go"
+	cache := NewDefaultCache()
+	cache.Start()
+	if cache.InCache(testFile) {
+		fmt.Println("failed")
+		fmt.Println("[!] file should not be in cache yet")
+		cache.Stop()
+		t.FailNow()
+	}
+
+	out, err := cache.ReadFile(testFile)
+	if (err != nil && err != ItemNotInCache) || !ValidateDataMatchesFile(out, testFile) {
+		fmt.Println("failed")
+		fmt.Printf("[!] transparent file read has failed: ")
+		if err != nil {
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println("file does not match cache contents")
+		}
+		cache.Stop()
+		t.FailNow()
+	}
+
+	time.Sleep(10 * time.Millisecond)
+	out, err = cache.ReadFile(testFile)
+	if err != nil || !ValidateDataMatchesFile(out, testFile) {
+		fmt.Println("failed")
+		fmt.Println("[!] ReadFile has failed")
+		t.Fail()
+	} else {
+		fmt.Println("ok")
+	}
+	cache.Stop()
 }
 
 func BenchmarkSyncCaching(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-                cache := NewDefaultCache()
-                cache.Start()
-                cache.CacheNow("filecache.go")
-                cache.Stop()
-        }
+	for i := 0; i < b.N; i++ {
+		cache := NewDefaultCache()
+		cache.Start()
+		cache.CacheNow("filecache.go")
+		cache.Stop()
+	}
+}
+
+func ValidateDataMatchesFile(out []byte, filename string) bool {
+	fileData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false
+	} else if len(fileData) != len(out) {
+		return false
+	}
+
+	for i := 0; i < len(out); i++ {
+		if out[i] != fileData[i] {
+			return false
+		}
+	}
+	return true
 }

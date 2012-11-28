@@ -1,12 +1,12 @@
 package filecache
 
 import (
-        "bytes"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-        "net/http"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -47,14 +47,15 @@ type cacheItem struct {
 }
 
 func (itm *cacheItem) GetReader() io.Reader {
-        b := bytes.NewReader(itm.Content)
-        return b
+	b := bytes.NewReader(itm.Content)
+	return b
 }
 
 // FileCache represents a cache in memory.
 // An ExpireItem value of 0 means that items should not be expired based
 // on time in memory.
 type FileCache struct {
+        dur        time.Duration
 	items      map[string]*cacheItem
 	in_pipe    chan string
 	MaxItems   int   // Maximum number of files to cache
@@ -168,7 +169,7 @@ func (cache *FileCache) WriteItem(w io.Writer, name string) (err error) {
 		err = ItemNotInCache
 		return
 	}
-        r := itm.GetReader()
+	r := itm.GetReader()
 	n, err := io.Copy(w, r)
 	if err != nil {
 		return
@@ -239,7 +240,7 @@ func (cache *FileCache) ReadFileString(name string) (content string, err error) 
 // it is read from the filesystem and the file is cached in the background.
 func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 	if cache.InCache(name) {
-                fmt.Println("haha hello again fucker")
+		fmt.Println("haha hello again fucker")
 		err = cache.WriteItem(w, name)
 	} else {
 		var fi os.FileInfo
@@ -263,21 +264,21 @@ func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 }
 
 func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
-        path := r.URL.Path
-        if len(path) > 1 {
-                path = path[1:len(path)]
-        } else {
-                http.ServeFile(w, r, ".")
-                return
-        }
-        itm, ok := cache.items[path]
-        if ok {
-                w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
-                w.Write(itm.Content)
-                return
-        }
-        go cache.Cache(path)
-        http.ServeFile(w, r, path)
+	path := r.URL.Path
+	if len(path) > 1 {
+		path = path[1:len(path)]
+	} else {
+		http.ServeFile(w, r, ".")
+		return
+	}
+	itm, ok := cache.items[path]
+	if ok {
+		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
+		w.Write(itm.Content)
+		return
+	}
+	go cache.Cache(path)
+	http.ServeFile(w, r, path)
 }
 
 // add_item is an internal function for adding an item to the cache.
@@ -320,8 +321,8 @@ func (cache *FileCache) add_item(name string) (err error) {
 // them.
 func (cache *FileCache) item_listener() {
 	for {
-		name, closed := <-cache.in_pipe
-		if !closed {
+		name, ok := <-cache.in_pipe
+		if !ok {
 			return
 		}
 		cache.add_item(name)
@@ -348,14 +349,20 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 }
 
 // Start activates the file cache; it will 
-func (cache *FileCache) Start() {
+func (cache *FileCache) Start() error {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
 	}
+	dur, err := time.ParseDuration(fmt.Sprintf("%ds", cache.Every))
+        if err != nil {
+                return err
+        }
+        cache.dur = dur
 	cache.items = make(map[string]*cacheItem, 0)
 	cache.in_pipe = make(chan string, NewCachePipeSize)
 	go cache.item_listener()
 	go cache.vaccuum()
+        return nil
 }
 
 // expire_oldest is used to expire the oldest item in the cache.
@@ -388,12 +395,8 @@ func (cache *FileCache) vaccuum() {
 		return
 	}
 
-	dur, err := time.ParseDuration(fmt.Sprintf("%ds", cache.Every))
-	if err != nil {
-		panic(err.Error())
-	}
 	for {
-		<-time.After(time.Duration(dur))
+		<-time.After(time.Duration(cache.dur))
 		if cache.items == nil {
 			return
 		}
