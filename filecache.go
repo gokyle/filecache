@@ -272,6 +272,7 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
         }
         itm, ok := cache.items[path]
         if ok {
+                w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
                 w.Write(itm.Content)
                 return
         }
