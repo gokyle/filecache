@@ -123,7 +123,7 @@ or will be stored in the cache).</li>
 defaults. The defaults are:
 <code>
 DefaultExpireItem int   = 300 // 5 minutes
-DefaultMaxSize    int64 = 32 * Megabyte
+DefaultMaxSize    int64 =  4 * Megabyte
 DefaultMaxItems   int   = 32
 DefaultEvery      int   = 60 // 1 minute
 </code>
@@ -155,7 +155,7 @@ currently cached. These are not sorted in any way.</li>
 <code>InCache(name string)</code> returns true if <code>name</code> is in the cache.</li>
 </ul><h3>Primary Methods</h3>
 
-<p>While the cache has several methods available, there are three main functions
+<p>While the cache has several methods available, there are four main functions
 you will likely use to interact with cache apart from initialisation and
 shutdown. All three of them provide transparent access to files; if the file
 is in the cache, it is read from the cache. Otherwise, the file is checked
@@ -174,6 +174,11 @@ contents of a file as a string.</li>
 <li>
 <code>WriteFile(w io.Writer, name) error</code> is used to write the contents of the
 file to the <code>io.Writer</code> interface given.</li>
+<li>
+<code>HttpWriteFile(w http.ResponseWriter, r *http.Request)</code> will write the
+contents of the file transparently over an HTTP connect. This should be
+used when the writer is an HTTP connection and will handle the
+appropriate HTTP headers.</li>
 </ul><p>Most people can now skip to the <em>Shutting Down</em> section.</p>
 
 <h3>Reading from the Cache</h3>
