@@ -32,6 +32,28 @@ func dumpModTime(name string) {
 	fmt.Printf("[-] %s mod time: %v\n", name, fi.ModTime().Unix())
 }
 
+func writeTempFile(t *testing.T, contents string) string {
+	tmpf, err := ioutil.TempFile("", "fctest")
+	if err != nil {
+		fmt.Println("failed")
+		fmt.Println("[!] couldn't create temporary file: ", err.Error())
+		return ""
+		t.Fail()
+	}
+	name := tmpf.Name()
+	tmpf.Close()
+	err = ioutil.WriteFile(name, []byte(contents), 0600)
+	if err != nil {
+		fmt.Println("failed")
+		fmt.Println("[!] couldn't write temporary file: ", err.Error())
+		os.Remove(name)
+		t.Fail()
+		name = ""
+		return name
+	}
+	return name
+}
+
 func TestCacheStartStop(t *testing.T) {
 	fmt.Printf("[+] testing cache start up and shutdown: ")
 	cache := NewDefaultCache()
@@ -40,10 +62,11 @@ func TestCacheStartStop(t *testing.T) {
 	cache.Stop()
 	fmt.Println("ok")
 }
+
 func TestTimeExpiration(t *testing.T) {
 	fmt.Printf("[+] ensure item expires after ExpireItem: ")
 	cache := NewDefaultCache()
-        cache.Start()
+	cache.Start()
 	name := "expired"
 	itm := getTimeExpiredCacheItem()
 	cache._add_cache_item(name, itm)
@@ -52,89 +75,58 @@ func TestTimeExpiration(t *testing.T) {
 		fmt.Println("[!] item should have expired!")
 		t.Fail()
 	} else {
-	        fmt.Println("ok")
-        }
-        cache.Stop()
+		fmt.Println("ok")
+	}
+	cache.Stop()
 }
 
 func TestFileChanged(t *testing.T) {
 	fmt.Printf("[+] validate file modification expires item: ")
 	cache := NewDefaultCache()
 	cache.Start()
-	tmpf, err := ioutil.TempFile("", "fctest")
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't create temporary file: ", err.Error())
-		cache.Stop()
-		t.FailNow()
-	}
-	tf_name := tmpf.Name()
-	tmpf.Close()
-	err = ioutil.WriteFile(tf_name, []byte("before modification"), 0600)
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't write temporary file: ", err.Error())
-		os.Remove(tf_name)
-		cache.Stop()
-		t.FailNow()
-	}
-	if err = cache.CacheNow(tf_name); err != nil {
+	name := writeTempFile(t, "lorem ipsum blah blah")
+	if name == "" {
 		fmt.Println("failed!")
 		fmt.Println("[!] failed to cache item")
-		os.Remove(tf_name)
 		cache.Stop()
 		t.FailNow()
-	} else if !cache.InCache(tf_name) {
+	} else if err := cache.CacheNow(name); err != nil {
+		fmt.Println("failed!")
+		fmt.Println("[!] failed to cache item")
+		cache.Stop()
+		t.FailNow()
+	} else if !cache.InCache(name) {
 		fmt.Println("failed")
 		fmt.Println("[!] failed to cache item")
-		os.Remove(tf_name)
+		os.Remove(name)
 		cache.Stop()
 		t.FailNow()
 	}
 	time.Sleep(1 * time.Second)
-	err = ioutil.WriteFile(tf_name, []byte("after modification"), 0600)
+	err := ioutil.WriteFile(name, []byte("after modification"), 0600)
 	if err != nil {
 		fmt.Println("failed")
 		fmt.Println("[!] couldn't write temporary file: ", err.Error())
-		os.Remove(tf_name)
-		cache.Stop()
-		t.FailNow()
-	}
-	if !cache.changed(tf_name) {
+		t.Fail()
+	} else if !cache.changed(name) {
 		fmt.Println("failed")
 		fmt.Println("[!] item should have expired!")
-		os.Remove(tf_name)
-		cache.Stop()
-		t.FailNow()
+		t.Fail()
 	}
-	os.Remove(tf_name)
+	os.Remove(name)
 	cache.Stop()
 	fmt.Println("ok")
 }
 
 func TestCache(t *testing.T) {
 	cache := NewDefaultCache()
-	fmt.Printf("[+] testing asynchronous file caching: ")
-	tmpf, err := ioutil.TempFile("", "fctest")
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't create temporary file: ", err.Error())
-		t.FailNow()
-	}
-	name := tmpf.Name()
-	tmpf.Close()
-
 	cache.Start()
-	err = ioutil.WriteFile(name, []byte("lorem ipsum dolor sit amet."), 0600)
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't write temporary file: ", err.Error())
-		os.Remove(name)
+	fmt.Printf("[+] testing asynchronous file caching: ")
+	name := writeTempFile(t, "lorem ipsum akldfjsdlf")
+	if name == "" {
 		cache.Stop()
 		t.FailNow()
-	}
-
-	if cache.InCache(name) {
+	} else if cache.InCache(name) {
 		fmt.Println("failed")
 		fmt.Println("[!] item should not be in cache yet!")
 		os.Remove(name)
@@ -151,10 +143,11 @@ func TestCache(t *testing.T) {
 		step  = 10
 		stop  = 500
 	)
-	dur, err = time.ParseDuration(fmt.Sprintf("%dµs", step))
+	dur, err := time.ParseDuration(fmt.Sprintf("%dµs", step))
 	if err != nil {
 		panic(err.Error())
 	}
+
 	for ok = cache.InCache(name); !ok; ok = cache.InCache(name) {
 		time.Sleep(dur)
 		delay += step
@@ -162,18 +155,17 @@ func TestCache(t *testing.T) {
 			break
 		}
 	}
+
 	if !ok {
 		fmt.Println("failed")
 		fmt.Printf("\t[*] cache check stopped after %dµs\n", delay)
+		t.Fail()
 	} else {
 		fmt.Println("ok")
 		fmt.Printf("\t[*] item cached in %dµs\n", delay)
 	}
 	cache.Stop()
 	os.Remove(name)
-	if !ok {
-		t.FailNow()
-	}
 
 }
 
@@ -183,40 +175,18 @@ func TestExpireAll(t *testing.T) {
 	cache.ExpireItem = 2
 	cache.Start()
 	fmt.Printf("[+] testing background expiration: ")
-	tmpf, err := ioutil.TempFile("", "fctest")
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't create temporary file: ", err.Error())
-		t.FailNow()
-	}
-	name := tmpf.Name()
-	tmpf.Close()
-
-	err = ioutil.WriteFile(name, []byte("lorem ipsum dolor sit amet."), 0600)
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't write temporary file: ", err.Error())
-		os.Remove(name)
+	name := writeTempFile(t, "this is a first file and some stuff should go here")
+	if name == "" {
 		cache.Stop()
-		t.FailNow()
+		t.Fail()
 	}
-
-	tmpf, err = ioutil.TempFile("", "fctest")
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't create temporary file: ", err.Error())
-		t.FailNow()
-	}
-	name2 := tmpf.Name()
-	tmpf.Close()
-
-	err = ioutil.WriteFile(name2, []byte("lorem ipsum dolor sit amet."), 0600)
-	if err != nil {
-		fmt.Println("failed")
-		fmt.Println("[!] couldn't write temporary file: ", err.Error())
-		os.Remove(name)
-		os.Remove(name2)
+	name2 := writeTempFile(t, "this is the second file")
+	if name2 == "" {
 		cache.Stop()
+		os.Remove(name)
+		t.Fail()
+	}
+	if t.Failed() {
 		t.FailNow()
 	}
 
@@ -225,26 +195,25 @@ func TestExpireAll(t *testing.T) {
 	cache.CacheNow(name2)
 	time.Sleep(500 * time.Millisecond)
 
-	err = ioutil.WriteFile(name2, []byte("lorem ipsum dolor sit amet."), 0600)
+	err := ioutil.WriteFile(name2, []byte("lorem ipsum dolor sit amet."), 0600)
 	if err != nil {
 		fmt.Println("failed")
 		fmt.Println("[!] couldn't write temporary file: ", err.Error())
-		os.Remove(name)
-		os.Remove(name2)
-		cache.Stop()
 		t.FailNow()
 	}
 
-	time.Sleep(1250 * time.Millisecond)
-	if cache.Size() > 0 {
-		fmt.Println("failed")
-		fmt.Printf("[!] %d items still in cache", cache.Size())
-		os.Remove(name)
-		os.Remove(name2)
-		cache.Stop()
-		t.FailNow()
+	if !t.Failed() {
+		time.Sleep(1250 * time.Millisecond)
+		if cache.Size() > 0 {
+			fmt.Println("failed")
+			fmt.Printf("[!] %d items still in cache", cache.Size())
+			t.Fail()
+		}
 	}
-	fmt.Println("ok")
+
+	if !t.Failed() {
+		fmt.Println("ok")
+	}
 	os.Remove(name)
 	os.Remove(name2)
 	cache.Stop()
@@ -264,37 +233,23 @@ func TestExpireOldest(t *testing.T) {
 	fmt.Printf("[+] validating item limit on cache: ")
 
 	for i := 0; i < 1000; i++ {
-		tmpf, err := ioutil.TempFile("", "fctest")
-		if err != nil {
-			fmt.Println("failed")
-			fmt.Println("[!] couldn't create temporary file: ", err.Error())
-			destroyNames(names)
-			t.FailNow()
+		name := writeTempFile(t, fmt.Sprintf("file number %d\n", i))
+		if t.Failed() {
+			break
 		}
-		name := tmpf.Name()
 		names = append(names, name)
-		tmpf.Close()
-
-		err = ioutil.WriteFile(name, []byte("lorem ipsum dolor sit amet."), 0600)
-		if err != nil {
-			fmt.Println("failed")
-			fmt.Println("[!] couldn't write temporary file: ", err.Error())
-			destroyNames(names)
-			cache.Stop()
-			t.FailNow()
-		}
 		cache.CacheNow(name)
 	}
 
-	if cache.Size() > cache.MaxItems {
+	if !t.Failed() && cache.Size() > cache.MaxItems {
 		fmt.Println("failed")
 		fmt.Printf("[!] %d items in cache (limit should be %d)",
 			cache.Size(), cache.MaxItems)
-		cache.Stop()
-		destroyNames(names)
-		t.FailNow()
+		t.Fail()
 	}
-	fmt.Println("ok")
+	if !t.Failed() {
+		fmt.Println("ok")
+	}
 	cache.Stop()
 	destroyNames(names)
 }
@@ -302,6 +257,7 @@ func TestExpireOldest(t *testing.T) {
 func TestNeverExpire(t *testing.T) {
 	cache := NewDefaultCache()
 	cache.ExpireItem = 0
+        cache.Every = 1
 	cache.Start()
 
 	fmt.Printf("[+] validating no time limit expirations: ")
@@ -323,7 +279,7 @@ func TestNeverExpire(t *testing.T) {
 		t.FailNow()
 	}
 	cache.Cache(name)
-	time.Sleep(5 * time.Second)
+        time.Sleep(2 * time.Second)
 	if !cache.InCache(name) {
 		fmt.Println("failed")
 		fmt.Println("[!] item should not have been expired")

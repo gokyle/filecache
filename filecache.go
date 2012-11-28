@@ -248,6 +248,7 @@ func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 		}
 		defer file.Close()
 		_, err = io.Copy(w, file)
+
 	}
 	return
 }
