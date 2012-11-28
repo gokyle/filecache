@@ -123,7 +123,7 @@ currently cached. These are not sorted in any way.
 * `InCache(name string)` returns true if `name` is in the cache.
 
 ### Primary Methods
-While the cache has several methods available, there are three main functions
+While the cache has several methods available, there are four main functions
 you will likely use to interact with cache apart from initialisation and
 shutdown. All three of them provide transparent access to files; if the file
 is in the cache, it is read from the cache. Otherwise, the file is checked
@@ -138,6 +138,8 @@ file as a byte slice.
 contents of a file as a string.
 * `WriteFile(w io.Writer, name) error` is used to write the contents of the
 file to the `io.Writer` interface given.
+* `HttpWriteFile(w http.ResponseWriter, r *http.Request)` will write the
+contents of the file transparently over an HTTP connect.
 
 Most people can now skip to the *Shutting Down* section.
 

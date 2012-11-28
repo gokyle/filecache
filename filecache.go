@@ -1,10 +1,12 @@
 package filecache
 
 import (
+        "bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+        "net/http"
 	"os"
 	"strconv"
 	"time"
@@ -20,7 +22,7 @@ const (
 
 var (
 	DefaultExpireItem int   = 300 // 5 minutes
-	DefaultMaxSize    int64 = 4 * Megabyte
+	DefaultMaxSize    int64 = 16 * Megabyte
 	DefaultMaxItems   int   = 32
 	DefaultEvery      int   = 60 // 1 minute
 )
@@ -36,6 +38,19 @@ var (
 // Mumber of items to buffer adding to the file cache.
 var NewCachePipeSize = 4
 
+/// CacheItem represents an item in the cache
+type cacheItem struct {
+	Content    []byte
+	Size       int64
+	Lastaccess time.Time
+	Modified   time.Time
+}
+
+func (itm *cacheItem) GetReader() io.Reader {
+        b := bytes.NewReader(itm.Content)
+        return b
+}
+
 // FileCache represents a cache in memory.
 // An ExpireItem value of 0 means that items should not be expired based
 // on time in memory.
@@ -46,14 +61,6 @@ type FileCache struct {
 	MaxSize    int64 // Maximum file size to store
 	ExpireItem int   // Seconds a file should be cached for
 	Every      int   // Run an expiration check Every seconds
-}
-
-// CacheItem represents an item in the cache
-type cacheItem struct {
-	Content    []byte
-	Size       int64
-	Lastaccess time.Time
-	Modified   time.Time
 }
 
 // NewCache returns an initialised (barely) cache.
@@ -161,7 +168,8 @@ func (cache *FileCache) WriteItem(w io.Writer, name string) (err error) {
 		err = ItemNotInCache
 		return
 	}
-	n, err := fmt.Fprintf(w, "%s", itm.Content)
+        r := itm.GetReader()
+	n, err := io.Copy(w, r)
 	if err != nil {
 		return
 	} else if int64(n) != itm.Size {
@@ -231,6 +239,7 @@ func (cache *FileCache) ReadFileString(name string) (content string, err error) 
 // it is read from the filesystem and the file is cached in the background.
 func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 	if cache.InCache(name) {
+                fmt.Println("haha hello again fucker")
 		err = cache.WriteItem(w, name)
 	} else {
 		var fi os.FileInfo
@@ -251,6 +260,23 @@ func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 
 	}
 	return
+}
+
+func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
+        path := r.URL.Path
+        if len(path) > 1 {
+                path = path[1:len(path)]
+        } else {
+                http.ServeFile(w, r, ".")
+                return
+        }
+        itm, ok := cache.items[path]
+        if ok {
+                w.Write(itm.Content)
+                return
+        }
+        go cache.Cache(path)
+        http.ServeFile(w, r, path)
 }
 
 // add_item is an internal function for adding an item to the cache.
