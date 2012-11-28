@@ -139,7 +139,9 @@ contents of a file as a string.
 * `WriteFile(w io.Writer, name) error` is used to write the contents of the
 file to the `io.Writer` interface given.
 * `HttpWriteFile(w http.ResponseWriter, r *http.Request)` will write the
-contents of the file transparently over an HTTP connect.
+contents of the file transparently over an HTTP connect. This should be
+used when the writer is an HTTP connection and will handle the
+appropriate HTTP headers.
 
 Most people can now skip to the *Shutting Down* section.
 
