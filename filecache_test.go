@@ -290,3 +290,28 @@ func TestNeverExpire(t *testing.T) {
 	cache.Stop()
 	os.Remove(name)
 }
+
+func BenchmarkAsyncCaching(b *testing.B) {
+        for i := 0; i < b.N; i++ {
+                cache := NewDefaultCache()
+                cache.Start()
+                cache.Cache("filecache.go")
+                for {
+                        if cache.InCache("filecache.go") {
+                                break
+                        }
+                        <-time.After(10 * time.Microsecond)
+                }
+                cache.Remove("filecache.go")
+                cache.Stop()
+        }
+}
+
+func BenchmarkSyncCaching(b *testing.B) {
+        for i := 0; i < b.N; i++ {
+                cache := NewDefaultCache()
+                cache.Start()
+                cache.CacheNow("filecache.go")
+                cache.Stop()
+        }
+}
