@@ -37,6 +37,8 @@ var (
 	WriteIncomplete  = errors.New("incomplete write of cache item")
 )
 
+var SquelchItemNotInCache = false
+
 // Mumber of items to buffer adding to the file cache.
 var NewCachePipeSize = 4
 
@@ -64,15 +66,6 @@ type FileCache struct {
 	MaxSize    int64 // Maximum file size to store
 	ExpireItem int   // Seconds a file should be cached for
 	Every      int   // Run an expiration check Every seconds
-}
-
-// NewCache returns an initialised (barely) cache.
-// Note this will only do the minimum amount of initialisation: setting up
-// the internal file store and such. Expiring items in the cache will not
-// work properly.
-func NewCache() *FileCache {
-	cache := new(FileCache)
-	return cache
 }
 
 // NewDefaultCache returns a new FileCache with sane defaults.
@@ -168,10 +161,13 @@ func (cache *FileCache) InCache(name string) bool {
 func (cache *FileCache) WriteItem(w io.Writer, name string) (err error) {
 	itm, ok := cache.items[name]
 	if !ok {
-		err = ItemNotInCache
+		if !SquelchItemNotInCache {
+			err = ItemNotInCache
+		}
 		return
 	}
 	r := itm.GetReader()
+	itm.Lastaccess = time.Now()
 	n, err := io.Copy(w, r)
 	if err != nil {
 		return
@@ -190,6 +186,7 @@ func (cache *FileCache) GetItem(name string) (content []byte, ok bool) {
 	if !ok {
 		return
 	}
+	itm.Lastaccess = time.Now()
 	content = itm.Content
 	return
 }
@@ -200,6 +197,7 @@ func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
 	if !ok {
 		return
 	}
+	itm.Lastaccess = time.Now()
 	content = string(itm.Content)
 	return
 }
@@ -208,14 +206,15 @@ func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
 // If the file is not in the cache, load the file and cache the file in the 
 // background. If the file was not in the cache and the read was successful,
 // the error ItemNotInCache is returned to indicate that the item was pulled
-// from the filesystem and not the cache.
+// from the filesystem and not the cache, unless the SquelchItemNotInCache
+// global option is set; in that case, returns no error.
 func (cache *FileCache) ReadFile(name string) (content []byte, err error) {
 	if cache.InCache(name) {
 		content, _ = cache.GetItem(name)
 	} else {
 		go cache.Cache(name)
 		content, err = ioutil.ReadFile(name)
-		if err == nil {
+		if err == nil && !SquelchItemNotInCache {
 			err = ItemNotInCache
 		}
 	}
@@ -229,7 +228,7 @@ func (cache *FileCache) ReadFileString(name string) (content string, err error) 
 	} else {
 		go cache.Cache(name)
 		raw, err := ioutil.ReadFile(name)
-		if err == nil {
+		if err == nil && !SquelchItemNotInCache {
 			err = ItemNotInCache
 			content = string(raw)
 		}
@@ -277,6 +276,7 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
 		w.Write(itm.Content)
+		itm.Lastaccess = time.Now()
 		return
 	}
 	go cache.Cache(path)
@@ -312,7 +312,11 @@ func (cache *FileCache) add_item(name string) (err error) {
 	itm.Size = fi.Size()
 	itm.Modified = fi.ModTime()
 	itm.Lastaccess = time.Now()
-	cache.items[name] = itm
+	if cache.items != nil {
+		cache.items[name] = itm
+	} else {
+		return
+	}
 	if !cache.InCache(name) {
 		return ItemNotInCache
 	}
@@ -422,10 +426,12 @@ func (cache *FileCache) Stop() {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
 	}
-	for name, _ := range cache.items {
-		delete(cache.items, name)
+	if cache.items != nil {
+		for name, _ := range cache.items {
+			delete(cache.items, name)
+		}
+		cache.items = nil
 	}
-	cache.items = nil
 }
 
 // RemoveItem immediately removes the item from the cache if it is present.
