@@ -37,7 +37,7 @@ var (
 	WriteIncomplete  = errors.New("incomplete write of cache item")
 )
 
-var SquelchItemNotInCache = false
+var SquelchItemNotInCache = true
 
 // Mumber of items to buffer adding to the file cache.
 var NewCachePipeSize = 4

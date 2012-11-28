@@ -86,6 +86,47 @@ func TestTimeExpiration(t *testing.T) {
 	cache.Stop()
 }
 
+func TestTimeExpirationUpdate(t *testing.T) {
+	fmt.Printf("[+] ensure accessing an item prevents it from expiring: ")
+	cache := NewDefaultCache()
+	cache.ExpireItem = 2
+	cache.Every = 1
+	if err := cache.Start(); err != nil {
+		fmt.Println("failed")
+		fmt.Println("[!] cache failed to start: ", err.Error())
+	}
+	testFile := "filecache.go"
+	cache.CacheNow(testFile)
+	if !cache.InCache(testFile) {
+		fmt.Println("failed")
+		fmt.Println("[!] failed to cache file")
+		cache.Stop()
+		t.FailNow()
+	}
+	time.Sleep(1500 * time.Millisecond)
+	contents, err := cache.ReadFile(testFile)
+	if err != nil || !ValidateDataMatchesFile(contents, testFile) {
+		fmt.Println("failed")
+		fmt.Printf("[!] file read failed: ")
+		if err != nil {
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println("cache contents do not match file")
+		}
+		cache.Stop()
+		t.FailNow()
+	}
+	time.Sleep(1 * time.Second)
+	if !cache.InCache(testFile) {
+		fmt.Println("failed")
+		fmt.Println("[!] item should not have expired")
+		t.Fail()
+	} else {
+		fmt.Println("ok")
+	}
+	cache.Stop()
+}
+
 func TestFileChanged(t *testing.T) {
 	fmt.Printf("[+] validate file modification expires item: ")
 	cache := NewDefaultCache()
