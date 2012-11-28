@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const VERSION = "1.0.0"
+
 // File size constants for use with FileCache.MaxSize.
 // For example, cache.MaxSize = 64 * Megabyte
 const (
@@ -55,7 +57,7 @@ func (itm *cacheItem) GetReader() io.Reader {
 // An ExpireItem value of 0 means that items should not be expired based
 // on time in memory.
 type FileCache struct {
-        dur        time.Duration
+	dur        time.Duration
 	items      map[string]*cacheItem
 	in_pipe    chan string
 	MaxItems   int   // Maximum number of files to cache
@@ -354,15 +356,15 @@ func (cache *FileCache) Start() error {
 		close(cache.in_pipe)
 	}
 	dur, err := time.ParseDuration(fmt.Sprintf("%ds", cache.Every))
-        if err != nil {
-                return err
-        }
-        cache.dur = dur
+	if err != nil {
+		return err
+	}
+	cache.dur = dur
 	cache.items = make(map[string]*cacheItem, 0)
 	cache.in_pipe = make(chan string, NewCachePipeSize)
 	go cache.item_listener()
 	go cache.vaccuum()
-        return nil
+	return nil
 }
 
 // expire_oldest is used to expire the oldest item in the cache.
