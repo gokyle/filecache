@@ -73,7 +73,10 @@ cache expiration is only done when the cache is at capacity.
 Once the cache is no longer needed, a call to `cache.Stop()` will close down
 the channels and signal the background scanner that it should stop.
 
-## Initialisation and Startup
+
+## Usage
+
+### Initialisation and Startup
 
 The public fields of the `FileCache` struct are:
 ```
@@ -107,7 +110,7 @@ for ensuring the cache remains updated, as well as setting up the asynchronous
 caching goroutine. The `Active` method returns true if the cache is currently
 running.
 
-## Cache Information
+### Cache Information
 
 The `FileCache` struct has several methods to return information about the
 cache:
@@ -119,7 +122,7 @@ item on the cache takes up approximately 32 bytes on top of this as overhead.
 currently cached. These are not sorted in any way.
 * `InCache(name string)` returns true if `name` is in the cache.
 
-## Primary Methods
+### Primary Methods
 While the cache has several methods available, there are three main functions
 you will likely use to interact with cache apart from initialisation and
 shutdown. All three of them provide transparent access to files; if the file
@@ -138,7 +141,7 @@ file to the `io.Writer` interface given.
 
 Most people can now skip to the *Shutting Down* section.
 
-## Reading from the Cache
+### Reading from the Cache
 
 If you are certain a file has been cached, and you want to access it directly
 from the cache, you can use these functions:
@@ -152,7 +155,7 @@ that it returns a string in place of the byte slice.
 * `WriteItem(w io.Writer, name string) (err error)` is the same as `WriteFile`
 except that no attempt is made to add the file to cache if it is not present.
 
-## Add to the Cache
+### Add to the Cache
 
 You can cache files without reading them using the two caching functions:
 
@@ -163,9 +166,33 @@ cache, the file may not immediately be cached.
 * `CacheNow(name string) error` will immediately cache the file and block
 until it has been cached, or until an error is returned.
 
-## Removing from the Cache
+### Removing from the Cache
 
 The `Remove(name string) (bool, error)` method will remove the file named
 from the cache. If the file was not in the cache or could not be removed,
 it returns false.
 
+### Shutting Down
+
+Once you are done with the cache, the `Stop` method takes care of all the
+necessary cleanup.
+
+## License
+
+`filecache` is released under the ISC license:
+
+```
+Copyright (c) 2012 Kyle Isom <kyle@tyrfingr.is>
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above 
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
+```
