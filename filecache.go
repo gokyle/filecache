@@ -20,7 +20,7 @@ const (
 
 var (
 	DefaultExpireItem int   = 300 // 5 minutes
-	DefaultMaxSize    int64 = 32 * Megabyte
+	DefaultMaxSize    int64 = 4 * Megabyte
 	DefaultMaxItems   int   = 32
 	DefaultEvery      int   = 60 // 1 minute
 )
