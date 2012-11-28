@@ -14,7 +14,7 @@ func getTimeExpiredCacheItem() *cacheItem {
 		panic(err.Error())
 	}
 	itm := new(cacheItem)
-	itm.Content = []byte("this cache item should be expired")
+	itm.content = []byte("this cache item should be expired")
 	itm.Lastaccess = time.Now().Add(TwoHours)
 	return itm
 }

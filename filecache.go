@@ -44,15 +44,43 @@ var NewCachePipeSize = 4
 
 /// CacheItem represents an item in the cache
 type cacheItem struct {
-	Content    []byte
+	content    []byte
 	Size       int64
 	Lastaccess time.Time
 	Modified   time.Time
 }
 
 func (itm *cacheItem) GetReader() io.Reader {
-	b := bytes.NewReader(itm.Content)
+	b := bytes.NewReader(itm.Access())
 	return b
+}
+
+func (itm *cacheItem) Access() []byte {
+	itm.Lastaccess = time.Now()
+	return itm.content
+}
+
+func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return
+	} else if fi.Mode().IsDir() {
+		return nil, ItemIsDirectory
+	} else if fi.Size() > maxSize {
+		return nil, ItemTooLarge
+	}
+
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return
+	}
+
+	itm = new(cacheItem)
+	itm.content = content
+	itm.Size = fi.Size()
+	itm.Modified = fi.ModTime()
+	itm.Lastaccess = time.Now()
+	return
 }
 
 // FileCache represents a cache in memory.
@@ -186,8 +214,7 @@ func (cache *FileCache) GetItem(name string) (content []byte, ok bool) {
 	if !ok {
 		return
 	}
-	itm.Lastaccess = time.Now()
-	content = itm.Content
+	content = itm.Access()
 	return
 }
 
@@ -197,8 +224,7 @@ func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
 	if !ok {
 		return
 	}
-	itm.Lastaccess = time.Now()
-	content = string(itm.Content)
+	content = string(itm.Access())
 	return
 }
 
@@ -275,8 +301,7 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 	itm, ok := cache.items[path]
 	if ok {
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
-		w.Write(itm.Content)
-		itm.Lastaccess = time.Now()
+		w.Write(itm.Access())
 		return
 	}
 	go cache.Cache(path)
@@ -293,25 +318,7 @@ func (cache *FileCache) add_item(name string) (err error) {
 		delete(cache.items, name)
 	}
 
-	fi, err := os.Stat(name)
-	if err != nil {
-		return
-	} else if fi.Mode().IsDir() {
-		return ItemIsDirectory
-	} else if fi.Size() > cache.MaxSize {
-		return ItemTooLarge
-	}
-
-	content, err := ioutil.ReadFile(name)
-	if err != nil {
-		return
-	}
-
-	itm := new(cacheItem)
-	itm.Content = content
-	itm.Size = fi.Size()
-	itm.Modified = fi.ModTime()
-	itm.Lastaccess = time.Now()
+	itm, err := cacheFile(name, cache.MaxSize)
 	if cache.items != nil {
 		cache.items[name] = itm
 	} else {
