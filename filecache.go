@@ -271,7 +271,6 @@ func (cache *FileCache) ReadFileString(name string) (content string, err error) 
 // it is read from the filesystem and the file is cached in the background.
 func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 	if cache.InCache(name) {
-		fmt.Println("haha hello again fucker")
 		err = cache.WriteItem(w, name)
 	} else {
 		var fi os.FileInfo
