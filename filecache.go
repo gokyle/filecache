@@ -99,12 +99,13 @@ type FileCache struct {
 
 // NewDefaultCache returns a new FileCache with sane defaults.
 func NewDefaultCache() *FileCache {
-	cache := new(FileCache)
-	cache.MaxItems = DefaultMaxItems
-	cache.MaxSize = DefaultMaxSize
-	cache.ExpireItem = DefaultExpireItem
-	cache.Every = DefaultEvery
-	return cache
+	cache := FileCache{time.Since(time.Now()),
+		nil, nil,
+		DefaultMaxItems,
+		DefaultMaxSize,
+		DefaultExpireItem,
+		DefaultEvery}
+	return &cache
 }
 
 // Active returns true if the cache has been started, and false otherwise.
@@ -308,6 +309,8 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 	if cache.InCache(path) {
 		itm := cache.items[path]
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
+		w.Header().Set("content-disposition",
+			fmt.Sprintf("filename=%s", path))
 		w.Write(itm.Access())
 		return
 	}
@@ -315,7 +318,7 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-// HttpHandler returns a valid HTTP handler for the given cache
+// HttpHandler returns a valid HTTP handler for the given cache.
 func HttpHandler(cache *FileCache) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cache.HttpWriteFile(w, r)
