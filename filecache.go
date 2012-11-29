@@ -391,14 +391,10 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cache.InCache(path) {
-		var tmp_nam string
 		itm := cache.items[path]
-		if tmp_nam, err = filepath.Abs(path); err != nil {
-			tmp_nam = path
-		}
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
 		w.Header().Set("content-disposition",
-			fmt.Sprintf("filename=%s", tmp_nam))
+			fmt.Sprintf("filename=%s", filepath.Base(path)))
 		w.Write(itm.Access())
 		return
 	}
