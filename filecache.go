@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const VERSION = "1.0.1"
+const VERSION = "1.0.2"
 
 // File size constants for use with FileCache.MaxSize.
 // For example, cache.MaxSize = 64 * Megabyte
