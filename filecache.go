@@ -302,8 +302,8 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, ".")
 		return
 	}
-	itm, ok := cache.items[path]
-	if ok {
+	if cache.InCache(path) {
+                itm := cache.items[path]
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
 		w.Write(itm.Access())
 		return
