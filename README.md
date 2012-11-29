@@ -56,9 +56,7 @@ used to determine whether an item in the cache should be expired; they are:
       of modification at the time of caching, and compares that to the
       file's current last modification time).
    2. Has the file been in the cache for longer than the maximum allowed
-      time? This check can be disabled by setting the cache's `ExpireItem`
-      field to `0`; in this case, the cache will only expire items that have
-      been modified since caching or that satisfy the next condition.
+      time?
    3. Is the cache at capacity? When a file is being cached, a check is
       made to see if the cache is currently filled. If it is, the item that
       was last accessed the longest ago is expired and the new item takes
@@ -108,7 +106,8 @@ Once the cache has been initialised, it needs to be started using the
 `Start()` method. This is important for initialising the goroutine responsible
 for ensuring the cache remains updated, as well as setting up the asynchronous
 caching goroutine. The `Active` method returns true if the cache is currently
-running.
+running. `Start()` returns an `error` if an error occurs; if one is returned,
+the cache should not be used.
 
 ### Cache Information
 
@@ -142,6 +141,13 @@ file to the `io.Writer` interface given.
 contents of the file transparently over an HTTP connect. This should be
 used when the writer is an HTTP connection and will handle the
 appropriate HTTP headers.
+
+If you are using the file cache in an HTTP server, you might find the
+following function useful:
+
+* `HttpHandler(*FileCache) func(w http.ResponseWriter, r *http.Request)`
+returns a function that can then be used directly in `http.HandleFunc`
+calls.
 
 Most people can now skip to the *Shutting Down* section.
 
