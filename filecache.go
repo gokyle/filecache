@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const VERSION = "1.0.0"
+const VERSION = "1.0.1"
 
 // File size constants for use with FileCache.MaxSize.
 // For example, cache.MaxSize = 64 * Megabyte
@@ -181,6 +181,10 @@ func (cache *FileCache) item_expired(name string) bool {
 
 // InCache returns true if the item is in the cache.
 func (cache *FileCache) InCache(name string) bool {
+	if cache.changed(name) {
+		delete(cache.items, name)
+		return false
+	}
 	_, ok := cache.items[name]
 	return ok
 }
@@ -310,6 +314,9 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 
 // add_item is an internal function for adding an item to the cache.
 func (cache *FileCache) add_item(name string) (err error) {
+	if cache.items == nil {
+		return
+	}
 	ok := cache.InCache(name)
 	expired := cache.item_expired(name)
 	if ok && !expired {
