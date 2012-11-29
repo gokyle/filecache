@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -141,7 +142,7 @@ func (cache *FileCache) StoredFiles() (fileList []string) {
 // expired.
 func (cache *FileCache) changed(name string) bool {
 	itm, ok := cache.items[name]
-	if !ok {
+	if !ok || itm == nil {
 		return true
 	}
 	fi, err := os.Stat(name)
@@ -294,21 +295,31 @@ func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 }
 
 func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	if len(path) > 1 {
+	path, err := url.QueryUnescape(r.URL.String())
+	if err != nil {
+		http.ServeFile(w, r, r.URL.Path)
+	} else if len(path) > 1 {
 		path = path[1:len(path)]
 	} else {
 		http.ServeFile(w, r, ".")
 		return
 	}
+
 	if cache.InCache(path) {
-                itm := cache.items[path]
+		itm := cache.items[path]
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
 		w.Write(itm.Access())
 		return
 	}
 	go cache.Cache(path)
 	http.ServeFile(w, r, path)
+}
+
+// HttpHandler returns a valid HTTP handler for the given cache
+func HttpHandler(cache *FileCache) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cache.HttpWriteFile(w, r)
+	}
 }
 
 // add_item is an internal function for adding an item to the cache.
@@ -325,7 +336,7 @@ func (cache *FileCache) add_item(name string) (err error) {
 	}
 
 	itm, err := cacheFile(name, cache.MaxSize)
-	if cache.items != nil {
+	if cache.items != nil && itm != nil {
 		cache.items[name] = itm
 	} else {
 		return
