@@ -108,34 +108,87 @@ func NewDefaultCache() *FileCache {
 	return &cache
 }
 
-// Active returns true if the cache has been started, and false otherwise.
-func (cache *FileCache) Active() bool {
-	if cache.in_pipe == nil || cache.items == nil {
-		return false
+// add_item is an internal function for adding an item to the cache.
+func (cache *FileCache) add_item(name string) (err error) {
+	if cache.items == nil {
+		return
 	}
-	return true
+	ok := cache.InCache(name)
+	expired := cache.item_expired(name)
+	if ok && !expired {
+		return nil
+	} else if ok {
+		delete(cache.items, name)
+	}
+
+	itm, err := cacheFile(name, cache.MaxSize)
+	if cache.items != nil && itm != nil {
+		cache.items[name] = itm
+	} else {
+		return
+	}
+	if !cache.InCache(name) {
+		return ItemNotInCache
+	}
+	return nil
 }
 
-// Size returns the number of entries in the cache.
-func (cache *FileCache) Size() int {
-	return len(cache.items)
+// item_listener is a goroutine that listens for incoming files and caches
+// them.
+func (cache *FileCache) item_listener() {
+	for {
+		name, ok := <-cache.in_pipe
+		if !ok {
+			return
+		}
+		cache.add_item(name)
+	}
 }
 
-// FileSize returns the sum of the file sizes stored in the cache
-func (cache *FileCache) FileSize() (totalSize int64) {
-	for _, itm := range cache.items {
-		totalSize += itm.Size
+// expire_oldest is used to expire the oldest item in the cache.
+// The force argument is used to indicate it should remove at least one
+// entry; for example, if a large number of files are cached at once, none
+// may appear older than another.
+func (cache *FileCache) expire_oldest(force bool) {
+	oldest := time.Now()
+	oldest_name := ""
+
+	for name, itm := range cache.items {
+		if force && oldest_name == "" {
+			oldest = itm.Lastaccess
+			oldest_name = name
+		} else if itm.Lastaccess.Before(oldest) {
+			oldest = itm.Lastaccess
+			oldest_name = name
+		}
 	}
-	return
+	if oldest_name != "" {
+		delete(cache.items, oldest_name)
+	}
 }
 
-// StoredFiles returns the list of files stored in the cache.
-func (cache *FileCache) StoredFiles() (fileList []string) {
-	fileList = make([]string, 0)
-	for name, _ := range cache.items {
-		fileList = append(fileList, name)
+// vaccuum is a background goroutine responsible for cleaning the cache.
+// It runs periodically, every cache.Every seconds. If cache.Every is set
+// to 0, it will not run.
+func (cache *FileCache) vaccuum() {
+	if cache.Every < 1 {
+		return
 	}
-	return
+
+	for {
+		<-time.After(time.Duration(cache.dur))
+		if cache.items == nil {
+			return
+		}
+		for name, _ := range cache.items {
+			if cache.item_expired(name) {
+				delete(cache.items, name)
+			}
+		}
+		for size := cache.Size(); size > cache.MaxItems; size = cache.Size() {
+			cache.expire_oldest(true)
+		}
+	}
 }
 
 // FileChanged returns true if file should be expired based on mtime.
@@ -179,6 +232,36 @@ func (cache *FileCache) item_expired(name string) bool {
 		return true
 	}
 	return false
+}
+
+// Active returns true if the cache has been started, and false otherwise.
+func (cache *FileCache) Active() bool {
+	if cache.in_pipe == nil || cache.items == nil {
+		return false
+	}
+	return true
+}
+
+// Size returns the number of entries in the cache.
+func (cache *FileCache) Size() int {
+	return len(cache.items)
+}
+
+// FileSize returns the sum of the file sizes stored in the cache
+func (cache *FileCache) FileSize() (totalSize int64) {
+	for _, itm := range cache.items {
+		totalSize += itm.Size
+	}
+	return
+}
+
+// StoredFiles returns the list of files stored in the cache.
+func (cache *FileCache) StoredFiles() (fileList []string) {
+	fileList = make([]string, 0)
+	for name, _ := range cache.items {
+		fileList = append(fileList, name)
+	}
+	return
 }
 
 // InCache returns true if the item is in the cache.
@@ -325,43 +408,6 @@ func HttpHandler(cache *FileCache) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
-// add_item is an internal function for adding an item to the cache.
-func (cache *FileCache) add_item(name string) (err error) {
-	if cache.items == nil {
-		return
-	}
-	ok := cache.InCache(name)
-	expired := cache.item_expired(name)
-	if ok && !expired {
-		return nil
-	} else if ok {
-		delete(cache.items, name)
-	}
-
-	itm, err := cacheFile(name, cache.MaxSize)
-	if cache.items != nil && itm != nil {
-		cache.items[name] = itm
-	} else {
-		return
-	}
-	if !cache.InCache(name) {
-		return ItemNotInCache
-	}
-	return nil
-}
-
-// item_listener is a goroutine that listens for incoming files and caches
-// them.
-func (cache *FileCache) item_listener() {
-	for {
-		name, ok := <-cache.in_pipe
-		if !ok {
-			return
-		}
-		cache.add_item(name)
-	}
-}
-
 // Cache will store the file named by 'name' to the cache.
 // This function doesn't return anything as it passes the file onto the
 // incoming pipe; the file will be cached asynchronously. Errors will
@@ -396,52 +442,6 @@ func (cache *FileCache) Start() error {
 	go cache.item_listener()
 	go cache.vaccuum()
 	return nil
-}
-
-// expire_oldest is used to expire the oldest item in the cache.
-// The force argument is used to indicate it should remove at least one
-// entry; for example, if a large number of files are cached at once, none
-// may appear older than another.
-func (cache *FileCache) expire_oldest(force bool) {
-	oldest := time.Now()
-	oldest_name := ""
-
-	for name, itm := range cache.items {
-		if force && oldest_name == "" {
-			oldest = itm.Lastaccess
-			oldest_name = name
-		} else if itm.Lastaccess.Before(oldest) {
-			oldest = itm.Lastaccess
-			oldest_name = name
-		}
-	}
-	if oldest_name != "" {
-		delete(cache.items, oldest_name)
-	}
-}
-
-// vaccuum is a background goroutine responsible for cleaning the cache.
-// It runs periodically, every cache.Every seconds. If cache.Every is set
-// to 0, it will not run.
-func (cache *FileCache) vaccuum() {
-	if cache.Every < 1 {
-		return
-	}
-
-	for {
-		<-time.After(time.Duration(cache.dur))
-		if cache.items == nil {
-			return
-		}
-		for name, _ := range cache.items {
-			if cache.item_expired(name) {
-				delete(cache.items, name)
-			}
-		}
-		for size := cache.Size(); size > cache.MaxItems; size = cache.Size() {
-			cache.expire_oldest(true)
-		}
-	}
 }
 
 // Stop turns off the file cache.
