@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+        "mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -382,6 +383,7 @@ func (cache *FileCache) WriteFile(w io.Writer, name string) (err error) {
 func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 	path, err := url.QueryUnescape(r.URL.String())
 	if err != nil {
+                fmt.Println("[!] FileCache: ", err.Error())
 		http.ServeFile(w, r, r.URL.Path)
 	} else if len(path) > 1 {
 		path = path[1:len(path)]
@@ -390,15 +392,24 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+        fmt.Println("[FileCache] file requested: ", path)
 	if cache.InCache(path) {
+                fmt.Printf("[FileCache] %s <- cache\n", path)
 		itm := cache.items[path]
+                ctype := http.DetectContentType(itm.Access())
+                mtype := mime.TypeByExtension(filepath.Ext(path))
+                if mtype != "" && mtype != ctype {
+                        ctype = mtype
+                }
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
 		w.Header().Set("content-disposition",
 			fmt.Sprintf("filename=%s", filepath.Base(path)))
+                w.Header().Set("content-type", ctype)
 		w.Write(itm.Access())
 		return
 	}
 	go cache.Cache(path)
+        fmt.Printf("[FileCache] %s <- fs\n", path)
 	http.ServeFile(w, r, path)
 }
 
