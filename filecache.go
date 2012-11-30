@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-        "mime"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -393,15 +393,15 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 
 	if cache.InCache(path) {
 		itm := cache.items[path]
-                ctype := http.DetectContentType(itm.Access())
-                mtype := mime.TypeByExtension(filepath.Ext(path))
-                if mtype != "" && mtype != ctype {
-                        ctype = mtype
-                }
+		ctype := http.DetectContentType(itm.Access())
+		mtype := mime.TypeByExtension(filepath.Ext(path))
+		if mtype != "" && mtype != ctype {
+			ctype = mtype
+		}
 		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
 		w.Header().Set("content-disposition",
 			fmt.Sprintf("filename=%s", filepath.Base(path)))
-                w.Header().Set("content-type", ctype)
+		w.Header().Set("content-type", ctype)
 		w.Write(itm.Access())
 		return
 	}
