@@ -320,7 +320,7 @@ func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
 }
 
 // ReadFile retrieves the file named by 'name'.
-// If the file is not in the cache, load the file and cache the file in the 
+// If the file is not in the cache, load the file and cache the file in the
 // background. If the file was not in the cache and the read was successful,
 // the error ItemNotInCache is returned to indicate that the item was pulled
 // from the filesystem and not the cache, unless the SquelchItemNotInCache
@@ -340,15 +340,9 @@ func (cache *FileCache) ReadFile(name string) (content []byte, err error) {
 
 // ReadFileString is the same as ReadFile, except returning a string.
 func (cache *FileCache) ReadFileString(name string) (content string, err error) {
-	if cache.InCache(name) {
-		content, _ = cache.GetItemString(name)
-	} else {
-		go cache.Cache(name)
-		raw, err := ioutil.ReadFile(name)
-		if err == nil && !SquelchItemNotInCache {
-			err = ItemNotInCache
-			content = string(raw)
-		}
+	raw, err := cache.ReadFile(name)
+	if err == nil {
+		content = string(raw)
 	}
 	return
 }
@@ -419,7 +413,7 @@ func HttpHandler(cache *FileCache) func(http.ResponseWriter, *http.Request) {
 // Cache will store the file named by 'name' to the cache.
 // This function doesn't return anything as it passes the file onto the
 // incoming pipe; the file will be cached asynchronously. Errors will
-// not be returned. 
+// not be returned.
 func (cache *FileCache) Cache(name string) {
 	if cache.Size() == cache.MaxItems {
 		cache.expire_oldest(true)
@@ -435,7 +429,7 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 	return cache.add_item(name)
 }
 
-// Start activates the file cache; it will 
+// Start activates the file cache; it will
 func (cache *FileCache) Start() error {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
@@ -456,7 +450,7 @@ func (cache *FileCache) Start() error {
 // This closes the concurrent caching mechanism, destroys the cache, and
 // the background scanner that it should stop.
 // If there are any items or cache operations ongoing while Stop() is called,
-// it is undefined how they will behave. 
+// it is undefined how they will behave.
 func (cache *FileCache) Stop() {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
