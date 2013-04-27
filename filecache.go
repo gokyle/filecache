@@ -45,7 +45,6 @@ var SquelchItemNotInCache = true
 // Mumber of items to buffer adding to the file cache.
 var NewCachePipeSize = 4
 
-/// CacheItem represents an item in the cache
 type cacheItem struct {
 	content    []byte
 	Size       int64
@@ -320,7 +319,7 @@ func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
 }
 
 // ReadFile retrieves the file named by 'name'.
-// If the file is not in the cache, load the file and cache the file in the 
+// If the file is not in the cache, load the file and cache the file in the
 // background. If the file was not in the cache and the read was successful,
 // the error ItemNotInCache is returned to indicate that the item was pulled
 // from the filesystem and not the cache, unless the SquelchItemNotInCache
@@ -419,7 +418,7 @@ func HttpHandler(cache *FileCache) func(http.ResponseWriter, *http.Request) {
 // Cache will store the file named by 'name' to the cache.
 // This function doesn't return anything as it passes the file onto the
 // incoming pipe; the file will be cached asynchronously. Errors will
-// not be returned. 
+// not be returned.
 func (cache *FileCache) Cache(name string) {
 	if cache.Size() == cache.MaxItems {
 		cache.expire_oldest(true)
@@ -435,7 +434,9 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 	return cache.add_item(name)
 }
 
-// Start activates the file cache; it will 
+// Start activates the file cache; it will start up the background caching
+// and automatic cache expiration goroutines and initialise the internal
+// data structures.
 func (cache *FileCache) Start() error {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
@@ -456,7 +457,7 @@ func (cache *FileCache) Start() error {
 // This closes the concurrent caching mechanism, destroys the cache, and
 // the background scanner that it should stop.
 // If there are any items or cache operations ongoing while Stop() is called,
-// it is undefined how they will behave. 
+// it is undefined how they will behave.
 func (cache *FileCache) Stop() {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
