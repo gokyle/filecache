@@ -339,15 +339,9 @@ func (cache *FileCache) ReadFile(name string) (content []byte, err error) {
 
 // ReadFileString is the same as ReadFile, except returning a string.
 func (cache *FileCache) ReadFileString(name string) (content string, err error) {
-	if cache.InCache(name) {
-		content, _ = cache.GetItemString(name)
-	} else {
-		go cache.Cache(name)
-		raw, err := ioutil.ReadFile(name)
-		if err == nil && !SquelchItemNotInCache {
-			err = ItemNotInCache
-			content = string(raw)
-		}
+	raw, err := cache.ReadFile(name)
+	if err == nil {
+		content = string(raw)
 	}
 	return
 }
@@ -434,9 +428,13 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 	return cache.add_item(name)
 }
 
+<<<<<<< HEAD
 // Start activates the file cache; it will start up the background caching
 // and automatic cache expiration goroutines and initialise the internal
 // data structures.
+=======
+// Start activates the file cache; it will
+>>>>>>> 5ef01a9602cf274c689483f113d8f339eafc3350
 func (cache *FileCache) Start() error {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)
