@@ -21,8 +21,8 @@ cache.Start()
 The `Kilobyte`, `Megabyte`, and `Gigabyte` constants are provided as a
 convience when setting cache sizes.
 
-You can transparently read and cache a file using `RetrieveFile  (and
-`RetrieveFileString`); if the file is not in the cache, it will be read
+You can transparently read and cache a file using `ReadFile`  (and
+`ReadFileString`); if the file is not in the cache, it will be read
 from the file system and returned; the cache will start a background
 thread to cache the file. Similarly, the `WriterFile` method will write
 the file to the specified `io.Writer`. For example, you could create a
@@ -77,6 +77,7 @@ the channels and signal the background scanner that it should stop.
 ### Initialisation and Startup
 
 The public fields of the `FileCache` struct are:
+
 ```
     MaxItems   int   // Maximum number of files to cache
     MaxSize    int64 // Maximum file size to store
@@ -92,6 +93,7 @@ very likely not useful (at a minimum, a `MaxItems` of `0` means no items can
 or will be stored in the cache).
 * `NewDefaultCache()` returns a new file cache initialised to some basic
 defaults. The defaults are:
+
 ```
 	DefaultExpireItem int   = 300 // 5 minutes
 	DefaultMaxSize    int64 =  4 * Megabyte
