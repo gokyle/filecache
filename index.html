@@ -47,12 +47,12 @@ cache.Start()
 <p>The <code>Kilobyte</code>, <code>Megabyte</code>, and <code>Gigabyte</code> constants are provided as a
 convience when setting cache sizes.</p>
 
-<p>You can transparently read and cache a file using <code>RetrieveFile  (and
-</code>RetrieveFileString<code>); if the file is not in the cache, it will be read
+<p>You can transparently read and cache a file using <code>ReadFile</code>  (and
+<code>ReadFileString</code>); if the file is not in the cache, it will be read
 from the file system and returned; the cache will start a background
-thread to cache the file. Similarly, the</code>WriterFile<code>method will write
-the file to the specified</code>io.Writer<code>. For example, you could create a
-</code>FileServer` function along the lines of </p>
+thread to cache the file. Similarly, the <code>WriterFile</code> method will write
+the file to the specified <code>io.Writer</code>. For example, you could create a
+<code>FileServer</code> function along the lines of </p>
 
 <pre><code>   func FileServer(w http.ResponseWriter, r *http.Request) {
            path := r.URL.Path
@@ -82,9 +82,7 @@ used to determine whether an item in the cache should be expired; they are:</p>
   of modification at the time of caching, and compares that to the
   file's current last modification time).</li>
 <li>Has the file been in the cache for longer than the maximum allowed
-  time? This check can be disabled by setting the cache's <code>ExpireItem</code>
-  field to <code>0</code>; in this case, the cache will only expire items that have
-  been modified since caching or that satisfy the next condition.</li>
+  time?</li>
 <li>Is the cache at capacity? When a file is being cached, a check is
   made to see if the cache is currently filled. If it is, the item that
   was last accessed the longest ago is expired and the new item takes
@@ -120,22 +118,22 @@ very likely not useful (at a minimum, a <code>MaxItems</code> of <code>0</code> 
 or will be stored in the cache).</li>
 <li>
 <code>NewDefaultCache()</code> returns a new file cache initialised to some basic
-defaults. The defaults are:
-<code>
-DefaultExpireItem int   = 300 // 5 minutes
-DefaultMaxSize    int64 =  4 * Megabyte
-DefaultMaxItems   int   = 32
-DefaultEvery      int   = 60 // 1 minute
-</code>
-</li>
-</ul><p>These defaults are public variables, and you may change them to more useful
+defaults. The defaults are:</li>
+</ul><pre><code>    DefaultExpireItem int   = 300 // 5 minutes
+    DefaultMaxSize    int64 =  4 * Megabyte
+    DefaultMaxItems   int   = 32
+    DefaultEvery      int   = 60 // 1 minute
+</code></pre>
+
+<p>These defaults are public variables, and you may change them to more useful
 values to your program.</p>
 
 <p>Once the cache has been initialised, it needs to be started using the
 <code>Start()</code> method. This is important for initialising the goroutine responsible
 for ensuring the cache remains updated, as well as setting up the asynchronous
 caching goroutine. The <code>Active</code> method returns true if the cache is currently
-running.</p>
+running. <code>Start()</code> returns an <code>error</code> if an error occurs; if one is returned,
+the cache should not be used.</p>
 
 <h3>Cache Information</h3>
 
@@ -179,6 +177,14 @@ file to the <code>io.Writer</code> interface given.</li>
 contents of the file transparently over an HTTP connect. This should be
 used when the writer is an HTTP connection and will handle the
 appropriate HTTP headers.</li>
+</ul><p>If you are using the file cache in an HTTP server, you might find the
+following function useful:</p>
+
+<ul>
+<li>
+<code>HttpHandler(*FileCache) func(w http.ResponseWriter, r *http.Request)</code>
+returns a function that can then be used directly in <code>http.HandleFunc</code>
+calls.</li>
 </ul><p>Most people can now skip to the <em>Shutting Down</em> section.</p>
 
 <h3>Reading from the Cache</h3>
