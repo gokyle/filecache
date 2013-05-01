@@ -45,7 +45,6 @@ var SquelchItemNotInCache = true
 // Mumber of items to buffer adding to the file cache.
 var NewCachePipeSize = 4
 
-/// CacheItem represents an item in the cache
 type cacheItem struct {
 	content    []byte
 	Size       int64
@@ -429,7 +428,9 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 	return cache.add_item(name)
 }
 
-// Start activates the file cache; it will
+// Start activates the file cache; it will start up the background caching
+// and automatic cache expiration goroutines and initialise the internal
+// data structures.
 func (cache *FileCache) Start() error {
 	if cache.in_pipe != nil {
 		close(cache.in_pipe)

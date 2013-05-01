@@ -37,7 +37,6 @@ func writeTempFile(t *testing.T, contents string) string {
 	if err != nil {
 		fmt.Println("failed")
 		fmt.Println("[!] couldn't create temporary file: ", err.Error())
-		return ""
 		t.Fail()
 	}
 	name := tmpf.Name()
