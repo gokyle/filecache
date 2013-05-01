@@ -187,6 +187,11 @@ it returns false.
 Once you are done with the cache, the `Stop` method takes care of all the
 necessary cleanup.
 
+## Examples
+
+Take a look at [cachesrv](https://github.com/gokyle/cachesrv) for
+an example of a caching fileserver.
+
 ## License
 
 `filecache` is released under the ISC license:
