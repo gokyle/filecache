@@ -30,6 +30,13 @@
      cache := filecache.NewDefaultCache()
      cache.Start()
 
+     readme, err := cache.ReadFile("README.md")
+     if err != nil {
+        fmt.Println("[!] couldn't read the README:", err.Error())
+     } else {
+        fmt.Printf("[+] read %d bytes\n", len(readme))
+     }
+
   You can transparently read and cache a file using RetrieveFile (and
   RetrieveFileString); if the file is not in the cache, it will be read
   from the file system and returned - the cache will start a background
