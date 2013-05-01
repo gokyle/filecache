@@ -21,12 +21,12 @@ cache.Start()
 The `Kilobyte`, `Megabyte`, and `Gigabyte` constants are provided as a
 convience when setting cache sizes.
 
-You can transparently read and cache a file using `RetrieveFile  (and
-`RetrieveFileString`); if the file is not in the cache, it will be read
+You can transparently read and cache a file using `ReadFile  (and
+`ReadFileString`); if the file is not in the cache, it will be read
 from the file system and returned; the cache will start a background
-thread to cache the file. Similarly, the `WriterFile` method will write
-the file to the specified `io.Writer`. For example, you could create a
-`FileServer` function along the lines of 
+thread to cache the file. Similarly, the `WriterFile` method will
+write the file to the specified `io.Writer`. For example, you could
+create a `FileServer` function along the lines of
 
 ```
    func FileServer(w http.ResponseWriter, r *http.Request) {
@@ -131,9 +131,9 @@ if this is the case. Finally, a goroutine is launched to cache the file in
 the background while the file is read and its contents provided directly from
 the filesystem.
 
-* `RetrieveFile(name string) ([]byte, error)` is used to get the contents of
+* `ReadFile(name string) ([]byte, error)` is used to get the contents of
 file as a byte slice.
-* `RetrieveFileString(name string) (string, error)` is used to get the
+* `ReadFileString(name string) (string, error)` is used to get the
 contents of a file as a string.
 * `WriteFile(w io.Writer, name) error` is used to write the contents of the
 file to the `io.Writer` interface given.
