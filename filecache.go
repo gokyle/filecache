@@ -177,8 +177,7 @@ func (cache *FileCache) vacuum() {
 		return
 	}
 
-	for {
-		<-time.After(time.Duration(cache.dur))
+	for _ = range time.Tick(cache.dur) {
 		if cache.items == nil {
 			return
 		}
