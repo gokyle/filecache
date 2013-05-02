@@ -101,13 +101,13 @@ type FileCache struct {
 
 // NewDefaultCache returns a new FileCache with sane defaults.
 func NewDefaultCache() *FileCache {
-	cache := FileCache{time.Since(time.Now()),
+	return &FileCache{time.Since(time.Now()),
 		nil, nil,
 		DefaultMaxItems,
 		DefaultMaxSize,
 		DefaultExpireItem,
-		DefaultEvery}
-	return &cache
+		DefaultEvery
+        }
 }
 
 // add_item is an internal function for adding an item to the cache.
