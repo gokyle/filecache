@@ -62,6 +62,12 @@ func (itm *cacheItem) Unlock() {
         itm.lock.Unlock()
 }
 
+func (itm *cacheItem) WasModified(fi os.FileInfo) bool {
+        itm.Lock()
+        defer itm.Unlock()
+        return itm.Modified.Equal(fi.ModTime())
+}
+
 func (itm *cacheItem) GetReader() io.Reader {
 	b := bytes.NewReader(itm.Access())
 	return b
@@ -174,6 +180,15 @@ func (cache *FileCache) addItem(name string) (err error) {
 	return nil
 }
 
+func (cache *FileCache) deleteItem(name string) {
+        _, ok := cache.getItem(name)
+        if ok {
+                cache.lock()
+                delete(cache.items, name)
+                cache.unlock()
+        }
+}
+
 // itemListener is a goroutine that listens for incoming files and caches
 // them.
 func (cache *FileCache) itemListener() {
@@ -192,19 +207,19 @@ func (cache *FileCache) itemListener() {
 // may appear older than another.
 func (cache *FileCache) expireOldest(force bool) {
 	oldest := time.Now()
-	oldest_name := ""
+	oldestName := ""
 
 	for name, itm := range cache.items {
-		if force && oldest_name == "" {
+		if force && oldestName == "" {
 			oldest = itm.Lastaccess
-			oldest_name = name
+			oldestName = name
 		} else if itm.Lastaccess.Before(oldest) {
 			oldest = itm.Lastaccess
-			oldest_name = name
+			oldestName = name
 		}
 	}
-	if oldest_name != "" {
-		delete(cache.items, oldest_name)
+	if oldestName != "" {
+		cache.deleteItem(oldestName)
 	}
 }
 
@@ -222,7 +237,7 @@ func (cache *FileCache) vacuum() {
 		}
 		for name, _ := range cache.items {
 			if cache.itemExpired(name) {
-				delete(cache.items, name)
+                                cache.deleteItem(name)
 			}
 		}
 		for size := cache.Size(); size > cache.MaxItems; size = cache.Size() {
@@ -242,7 +257,7 @@ func (cache *FileCache) changed(name string) bool {
 	fi, err := os.Stat(name)
 	if err != nil {
 		return true
-	} else if !itm.Modified.Equal(fi.ModTime()) {
+	} else if !itm.WasModified(fi) {
 		return true
 	}
 	return false
@@ -307,7 +322,7 @@ func (cache *FileCache) StoredFiles() (fileList []string) {
 // InCache returns true if the item is in the cache.
 func (cache *FileCache) InCache(name string) bool {
 	if cache.changed(name) {
-		delete(cache.items, name)
+		cache.deleteItem(name)
 		return false
 	}
 	_, ok := cache.items[name]
@@ -496,10 +511,13 @@ func (cache *FileCache) Stop() {
 		close(cache.in)
 	}
 	if cache.items != nil {
-		for name, _ := range cache.items {
-			delete(cache.items, name)
+                items := cache.StoredFiles()
+		for _, name := range items {
+			cache.deleteItem(name)
 		}
+                cache.lock()
 		cache.items = nil
+                cache.unlock()
 	}
 }
 
@@ -511,8 +529,8 @@ func (cache *FileCache) Remove(name string) (ok bool, err error) {
 	if !ok {
 		return
 	}
-	delete(cache.items, name)
-	_, valid := cache.items[name]
+	cache.deleteItem(name)
+	_, valid := cache.getItem(name)
 	if valid {
 		ok = false
 	}
