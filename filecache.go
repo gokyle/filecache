@@ -106,8 +106,8 @@ func NewDefaultCache() *FileCache {
 		DefaultMaxItems,
 		DefaultMaxSize,
 		DefaultExpireItem,
-		DefaultEvery
-        }
+		DefaultEvery,
+	}
 }
 
 // add_item is an internal function for adding an item to the cache.
@@ -116,7 +116,7 @@ func (cache *FileCache) add_item(name string) (err error) {
 		return
 	}
 	ok := cache.InCache(name)
-	expired := cache.item_expired(name)
+	expired := cache.itemExpired(name)
 	if ok && !expired {
 		return nil
 	} else if ok {
@@ -183,7 +183,7 @@ func (cache *FileCache) vaccuum() {
 			return
 		}
 		for name, _ := range cache.items {
-			if cache.item_expired(name) {
+			if cache.itemExpired(name) {
 				delete(cache.items, name)
 			}
 		}
@@ -226,8 +226,8 @@ func (cache *FileCache) expired(name string) bool {
 	return false
 }
 
-// item_expired returns true if an item is expired.
-func (cache *FileCache) item_expired(name string) bool {
+// itemExpired returns true if an item is expired.
+func (cache *FileCache) itemExpired(name string) bool {
 	if cache.changed(name) {
 		return true
 	} else if cache.ExpireItem != 0 && cache.expired(name) {
