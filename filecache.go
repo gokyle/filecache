@@ -77,11 +77,12 @@ func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
 		return
 	}
 
-	itm = new(cacheItem)
-	itm.content = content
-	itm.Size = fi.Size()
-	itm.Modified = fi.ModTime()
-	itm.Lastaccess = time.Now()
+	itm = &cacheItem{
+		content:    content,
+		Size:       fi.Size(),
+		Modified:   fi.ModTime(),
+		Lastaccess: time.Now(),
+	}
 	return
 }
 
