@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -47,9 +48,18 @@ var NewCachePipeSize = 4
 
 type cacheItem struct {
 	content    []byte
+	lock       *sync.Mutex
 	Size       int64
 	Lastaccess time.Time
 	Modified   time.Time
+}
+
+func (itm *cacheItem) Lock() {
+        itm.lock.Lock()
+}
+
+func (itm *cacheItem) Unlock() {
+        itm.lock.Unlock()
 }
 
 func (itm *cacheItem) GetReader() io.Reader {
@@ -79,6 +89,7 @@ func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
 
 	itm = &cacheItem{
 		content:    content,
+		lock:       new(sync.Mutex),
 		Size:       fi.Size(),
 		Modified:   fi.ModTime(),
 		Lastaccess: time.Now(),
@@ -93,6 +104,7 @@ type FileCache struct {
 	dur        time.Duration
 	items      map[string]*cacheItem
 	in         chan string
+	mutex      *sync.Mutex
 	MaxItems   int   // Maximum number of files to cache
 	MaxSize    int64 // Maximum file size to store
 	ExpireItem int   // Seconds a file should be cached for
@@ -101,13 +113,24 @@ type FileCache struct {
 
 // NewDefaultCache returns a new FileCache with sane defaults.
 func NewDefaultCache() *FileCache {
-	return &FileCache{time.Since(time.Now()),
-		nil, nil,
-		DefaultMaxItems,
-		DefaultMaxSize,
-		DefaultExpireItem,
-		DefaultEvery,
+	return &FileCache{
+		dur:        time.Since(time.Now()),
+		items:      nil,
+		in:         nil,
+		mutex:      new(sync.Mutex),
+		MaxItems:   DefaultMaxItems,
+		MaxSize:    DefaultMaxSize,
+		ExpireItem: DefaultExpireItem,
+		Every:      DefaultEvery,
 	}
+}
+
+func (cache *FileCache) lock() {
+        cache.mutex.lock()
+}
+
+func (cache *FileCache) unlock() {
+        cache.mutex.unlock()
 }
 
 // addItem is an internal function for adding an item to the cache.
