@@ -120,7 +120,7 @@ type FileCache struct {
 	in         chan string
 	mutex      *sync.Mutex
 	shutdown   chan interface{}
-        wait       sync.WaitGroup
+	wait       sync.WaitGroup
 	MaxItems   int   // Maximum number of files to cache
 	MaxSize    int64 // Maximum file size to store
 	ExpireItem int   // Seconds a file should be cached for
@@ -204,13 +204,13 @@ func (cache *FileCache) deleteItem(name string) {
 // itemListener is a goroutine that listens for incoming files and caches
 // them.
 func (cache *FileCache) itemListener() {
-        cache.wait.Add(1)
+	cache.wait.Add(1)
 	for {
 		select {
 		case name := <-cache.in:
 			cache.addItem(name)
 		case <-cache.shutdown:
-                        cache.wait.Done()
+			cache.wait.Done()
 			return
 		}
 	}
@@ -246,15 +246,15 @@ func (cache *FileCache) vacuum() {
 		return
 	}
 
-        cache.wait.Add(1)
+	cache.wait.Add(1)
 	for {
 		select {
 		case _ = <-cache.shutdown:
-                        cache.wait.Done()
+			cache.wait.Done()
 			return
 		case <-time.After(cache.dur):
 			if cache.isCacheNull() {
-                                cache.wait.Done()
+				cache.wait.Done()
 				return
 			}
 			for name, _ := range cache.items {
@@ -547,7 +547,7 @@ func (cache *FileCache) Stop() {
 	if cache.in != nil {
 		close(cache.in)
 		close(cache.shutdown)
-                <-time.After(1 * time.Microsecond)      // give goroutines time to shutdown
+		<-time.After(1 * time.Microsecond) // give goroutines time to shutdown
 	}
 
 	if cache.items != nil {
@@ -559,7 +559,7 @@ func (cache *FileCache) Stop() {
 		cache.items = nil
 		cache.unlock()
 	}
-        cache.wait.Wait()
+	cache.wait.Wait()
 }
 
 // RemoveItem immediately removes the item from the cache if it is present.
