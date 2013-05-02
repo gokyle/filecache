@@ -126,11 +126,11 @@ func NewDefaultCache() *FileCache {
 }
 
 func (cache *FileCache) lock() {
-        cache.mutex.lock()
+        cache.mutex.Lock()
 }
 
 func (cache *FileCache) unlock() {
-        cache.mutex.unlock()
+        cache.mutex.Unlock()
 }
 
 // addItem is an internal function for adding an item to the cache.
