@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+        "sync"
 	"testing"
 	"time"
 )
@@ -16,6 +17,7 @@ func getTimeExpiredCacheItem() *cacheItem {
 	itm := new(cacheItem)
 	itm.content = []byte("this cache item should be expired")
 	itm.Lastaccess = time.Now().Add(TwoHours)
+        itm.lock = new(sync.Mutex)
 	return itm
 }
 

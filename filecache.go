@@ -55,10 +55,16 @@ type cacheItem struct {
 }
 
 func (itm *cacheItem) Lock() {
+        if itm.lock == nil {
+                return
+        }
         itm.lock.Lock()
 }
 
 func (itm *cacheItem) Unlock() {
+        if itm.lock == nil {
+                return
+        }
         itm.lock.Unlock()
 }
 
@@ -74,6 +80,8 @@ func (itm *cacheItem) GetReader() io.Reader {
 }
 
 func (itm *cacheItem) Access() []byte {
+        itm.Lock()
+        defer itm.Unlock()
 	itm.Lastaccess = time.Now()
 	return itm.content
 }
@@ -269,7 +277,9 @@ func (cache *FileCache) expired(name string) bool {
 	if !ok {
 		return true
 	}
+        itm.Lock()
 	dur := time.Now().Sub(itm.Lastaccess)
+        itm.Unlock()
 	sec, err := strconv.Atoi(fmt.Sprintf("%0.0f", dur.Seconds()))
 	if err != nil {
 		return true
@@ -299,6 +309,8 @@ func (cache *FileCache) Active() bool {
 
 // Size returns the number of entries in the cache.
 func (cache *FileCache) Size() int {
+        cache.lock()
+        defer cache.unlock()
 	return len(cache.items)
 }
 
