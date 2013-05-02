@@ -133,9 +133,25 @@ func (cache *FileCache) unlock() {
         cache.mutex.Unlock()
 }
 
+func (cache *FileCache) isCacheNull() bool {
+        cache.lock()
+        defer cache.unlock()
+        return cache.items == nil
+}
+
+func (cache *FileCache) getItem(name string) (itm *cacheItem, ok bool) {
+        if cache.isCacheNull() {
+                return nil, false
+        }
+        cache.lock()
+        defer cache.unlock()
+        itm, ok = cache.items[name]
+        return
+}
+
 // addItem is an internal function for adding an item to the cache.
 func (cache *FileCache) addItem(name string) (err error) {
-	if cache.items == nil {
+	if cache.isCacheNull() {
 		return
 	}
 	ok := cache.InCache(name)
@@ -201,7 +217,7 @@ func (cache *FileCache) vacuum() {
 	}
 
 	for _ = range time.Tick(cache.dur) {
-		if cache.items == nil {
+		if cache.isCacheNull() {
 			return
 		}
 		for name, _ := range cache.items {
@@ -219,7 +235,7 @@ func (cache *FileCache) vacuum() {
 // If the file has changed on disk or no longer exists, it should be
 // expired.
 func (cache *FileCache) changed(name string) bool {
-	itm, ok := cache.items[name]
+	itm, ok := cache.getItem(name)
 	if !ok || itm == nil {
 		return true
 	}
@@ -234,7 +250,7 @@ func (cache *FileCache) changed(name string) bool {
 
 // Expired returns true if the item has not been accessed recently.
 func (cache *FileCache) expired(name string) bool {
-	itm, ok := cache.items[name]
+	itm, ok := cache.getItem(name)
 	if !ok {
 		return true
 	}
@@ -260,7 +276,7 @@ func (cache *FileCache) itemExpired(name string) bool {
 
 // Active returns true if the cache has been started, and false otherwise.
 func (cache *FileCache) Active() bool {
-	if cache.in == nil || cache.items == nil {
+	if cache.in == nil || cache.isCacheNull() {
 		return false
 	}
 	return true
@@ -300,7 +316,7 @@ func (cache *FileCache) InCache(name string) bool {
 
 // WriteItem writes the cache item to the specified io.Writer.
 func (cache *FileCache) WriteItem(w io.Writer, name string) (err error) {
-	itm, ok := cache.items[name]
+	itm, ok := cache.getItem(name)
 	if !ok {
 		if !SquelchItemNotInCache {
 			err = ItemNotInCache
@@ -323,7 +339,7 @@ func (cache *FileCache) WriteItem(w io.Writer, name string) (err error) {
 // GetItem should be used when you are certain an object is in the cache,
 // or if you want to use the cache only.
 func (cache *FileCache) GetItem(name string) (content []byte, ok bool) {
-	itm, ok := cache.items[name]
+	itm, ok := cache.getItem(name)
 	if !ok {
 		return
 	}
@@ -333,7 +349,7 @@ func (cache *FileCache) GetItem(name string) (content []byte, ok bool) {
 
 // GetItemString is the same as GetItem, except returning a string.
 func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
-	itm, ok := cache.items[name]
+	itm, ok := cache.getItem(name)
 	if !ok {
 		return
 	}
