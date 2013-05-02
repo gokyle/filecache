@@ -110,8 +110,8 @@ func NewDefaultCache() *FileCache {
 	}
 }
 
-// add_item is an internal function for adding an item to the cache.
-func (cache *FileCache) add_item(name string) (err error) {
+// addItem is an internal function for adding an item to the cache.
+func (cache *FileCache) addItem(name string) (err error) {
 	if cache.items == nil {
 		return
 	}
@@ -135,23 +135,23 @@ func (cache *FileCache) add_item(name string) (err error) {
 	return nil
 }
 
-// item_listener is a goroutine that listens for incoming files and caches
+// itemListener is a goroutine that listens for incoming files and caches
 // them.
-func (cache *FileCache) item_listener() {
+func (cache *FileCache) itemListener() {
 	for {
 		name, ok := <-cache.in
 		if !ok {
 			return
 		}
-		cache.add_item(name)
+		cache.addItem(name)
 	}
 }
 
-// expire_oldest is used to expire the oldest item in the cache.
+// expireOldest is used to expire the oldest item in the cache.
 // The force argument is used to indicate it should remove at least one
 // entry; for example, if a large number of files are cached at once, none
 // may appear older than another.
-func (cache *FileCache) expire_oldest(force bool) {
+func (cache *FileCache) expireOldest(force bool) {
 	oldest := time.Now()
 	oldest_name := ""
 
@@ -187,7 +187,7 @@ func (cache *FileCache) vacuum() {
 			}
 		}
 		for size := cache.Size(); size > cache.MaxItems; size = cache.Size() {
-			cache.expire_oldest(true)
+			cache.expireOldest(true)
 		}
 	}
 }
@@ -415,7 +415,7 @@ func HttpHandler(cache *FileCache) func(http.ResponseWriter, *http.Request) {
 // not be returned.
 func (cache *FileCache) Cache(name string) {
 	if cache.Size() == cache.MaxItems {
-		cache.expire_oldest(true)
+		cache.expireOldest(true)
 	}
 	cache.in <- name
 }
@@ -423,9 +423,9 @@ func (cache *FileCache) Cache(name string) {
 // CacheNow immediately caches the file named by 'name'.
 func (cache *FileCache) CacheNow(name string) (err error) {
 	if cache.Size() == cache.MaxItems {
-		cache.expire_oldest(true)
+		cache.expireOldest(true)
 	}
-	return cache.add_item(name)
+	return cache.addItem(name)
 }
 
 // Start activates the file cache; it will start up the background caching
@@ -442,7 +442,7 @@ func (cache *FileCache) Start() error {
 	cache.dur = dur
 	cache.items = make(map[string]*cacheItem, 0)
 	cache.in = make(chan string, NewCachePipeSize)
-	go cache.item_listener()
+	go cache.itemListener()
 	go cache.vacuum()
 	return nil
 }
