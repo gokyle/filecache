@@ -92,7 +92,7 @@ func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
 type FileCache struct {
 	dur        time.Duration
 	items      map[string]*cacheItem
-	in_pipe    chan string
+	in         chan string
 	MaxItems   int   // Maximum number of files to cache
 	MaxSize    int64 // Maximum file size to store
 	ExpireItem int   // Seconds a file should be cached for
@@ -139,7 +139,7 @@ func (cache *FileCache) add_item(name string) (err error) {
 // them.
 func (cache *FileCache) item_listener() {
 	for {
-		name, ok := <-cache.in_pipe
+		name, ok := <-cache.in
 		if !ok {
 			return
 		}
@@ -238,7 +238,7 @@ func (cache *FileCache) item_expired(name string) bool {
 
 // Active returns true if the cache has been started, and false otherwise.
 func (cache *FileCache) Active() bool {
-	if cache.in_pipe == nil || cache.items == nil {
+	if cache.in == nil || cache.items == nil {
 		return false
 	}
 	return true
@@ -418,7 +418,7 @@ func (cache *FileCache) Cache(name string) {
 	if cache.Size() == cache.MaxItems {
 		cache.expire_oldest(true)
 	}
-	cache.in_pipe <- name
+	cache.in <- name
 }
 
 // CacheNow immediately caches the file named by 'name'.
@@ -433,8 +433,8 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 // and automatic cache expiration goroutines and initialise the internal
 // data structures.
 func (cache *FileCache) Start() error {
-	if cache.in_pipe != nil {
-		close(cache.in_pipe)
+	if cache.in != nil {
+		close(cache.in)
 	}
 	dur, err := time.ParseDuration(fmt.Sprintf("%ds", cache.Every))
 	if err != nil {
@@ -442,7 +442,7 @@ func (cache *FileCache) Start() error {
 	}
 	cache.dur = dur
 	cache.items = make(map[string]*cacheItem, 0)
-	cache.in_pipe = make(chan string, NewCachePipeSize)
+	cache.in = make(chan string, NewCachePipeSize)
 	go cache.item_listener()
 	go cache.vaccuum()
 	return nil
@@ -454,8 +454,8 @@ func (cache *FileCache) Start() error {
 // If there are any items or cache operations ongoing while Stop() is called,
 // it is undefined how they will behave.
 func (cache *FileCache) Stop() {
-	if cache.in_pipe != nil {
-		close(cache.in_pipe)
+	if cache.in != nil {
+		close(cache.in)
 	}
 	if cache.items != nil {
 		for name, _ := range cache.items {
