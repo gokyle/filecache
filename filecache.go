@@ -55,23 +55,23 @@ type cacheItem struct {
 }
 
 func (itm *cacheItem) Lock() {
-        if itm.lock == nil {
-                return
-        }
-        itm.lock.Lock()
+	if itm.lock == nil {
+		return
+	}
+	itm.lock.Lock()
 }
 
 func (itm *cacheItem) Unlock() {
-        if itm.lock == nil {
-                return
-        }
-        itm.lock.Unlock()
+	if itm.lock == nil {
+		return
+	}
+	itm.lock.Unlock()
 }
 
 func (itm *cacheItem) WasModified(fi os.FileInfo) bool {
-        itm.Lock()
-        defer itm.Unlock()
-        return itm.Modified.Equal(fi.ModTime())
+	itm.Lock()
+	defer itm.Unlock()
+	return itm.Modified.Equal(fi.ModTime())
 }
 
 func (itm *cacheItem) GetReader() io.Reader {
@@ -80,8 +80,8 @@ func (itm *cacheItem) GetReader() io.Reader {
 }
 
 func (itm *cacheItem) Access() []byte {
-        itm.Lock()
-        defer itm.Unlock()
+	itm.Lock()
+	defer itm.Unlock()
 	itm.Lastaccess = time.Now()
 	return itm.content
 }
@@ -119,6 +119,8 @@ type FileCache struct {
 	items      map[string]*cacheItem
 	in         chan string
 	mutex      *sync.Mutex
+	shutdown   chan interface{}
+        wait       sync.WaitGroup
 	MaxItems   int   // Maximum number of files to cache
 	MaxSize    int64 // Maximum file size to store
 	ExpireItem int   // Seconds a file should be cached for
@@ -140,27 +142,27 @@ func NewDefaultCache() *FileCache {
 }
 
 func (cache *FileCache) lock() {
-        cache.mutex.Lock()
+	cache.mutex.Lock()
 }
 
 func (cache *FileCache) unlock() {
-        cache.mutex.Unlock()
+	cache.mutex.Unlock()
 }
 
 func (cache *FileCache) isCacheNull() bool {
-        cache.lock()
-        defer cache.unlock()
-        return cache.items == nil
+	cache.lock()
+	defer cache.unlock()
+	return cache.items == nil
 }
 
 func (cache *FileCache) getItem(name string) (itm *cacheItem, ok bool) {
-        if cache.isCacheNull() {
-                return nil, false
-        }
-        cache.lock()
-        defer cache.unlock()
-        itm, ok = cache.items[name]
-        return
+	if cache.isCacheNull() {
+		return nil, false
+	}
+	cache.lock()
+	defer cache.unlock()
+	itm, ok = cache.items[name]
+	return
 }
 
 // addItem is an internal function for adding an item to the cache.
@@ -178,7 +180,9 @@ func (cache *FileCache) addItem(name string) (err error) {
 
 	itm, err := cacheFile(name, cache.MaxSize)
 	if cache.items != nil && itm != nil {
+		cache.lock()
 		cache.items[name] = itm
+		cache.unlock()
 	} else {
 		return
 	}
@@ -189,23 +193,26 @@ func (cache *FileCache) addItem(name string) (err error) {
 }
 
 func (cache *FileCache) deleteItem(name string) {
-        _, ok := cache.getItem(name)
-        if ok {
-                cache.lock()
-                delete(cache.items, name)
-                cache.unlock()
-        }
+	_, ok := cache.getItem(name)
+	if ok {
+		cache.lock()
+		delete(cache.items, name)
+		cache.unlock()
+	}
 }
 
 // itemListener is a goroutine that listens for incoming files and caches
 // them.
 func (cache *FileCache) itemListener() {
+        cache.wait.Add(1)
 	for {
-		name, ok := <-cache.in
-		if !ok {
+		select {
+		case name := <-cache.in:
+			cache.addItem(name)
+		case <-cache.shutdown:
+                        cache.wait.Done()
 			return
 		}
-		cache.addItem(name)
 	}
 }
 
@@ -239,17 +246,25 @@ func (cache *FileCache) vacuum() {
 		return
 	}
 
-	for _ = range time.Tick(cache.dur) {
-		if cache.isCacheNull() {
+        cache.wait.Add(1)
+	for {
+		select {
+		case _ = <-cache.shutdown:
+                        cache.wait.Done()
 			return
-		}
-		for name, _ := range cache.items {
-			if cache.itemExpired(name) {
-                                cache.deleteItem(name)
+		case <-time.After(cache.dur):
+			if cache.isCacheNull() {
+                                cache.wait.Done()
+				return
 			}
-		}
-		for size := cache.Size(); size > cache.MaxItems; size = cache.Size() {
-			cache.expireOldest(true)
+			for name, _ := range cache.items {
+				if cache.itemExpired(name) {
+					cache.deleteItem(name)
+				}
+			}
+			for size := cache.Size(); size > cache.MaxItems; size = cache.Size() {
+				cache.expireOldest(true)
+			}
 		}
 	}
 }
@@ -277,9 +292,9 @@ func (cache *FileCache) expired(name string) bool {
 	if !ok {
 		return true
 	}
-        itm.Lock()
+	itm.Lock()
 	dur := time.Now().Sub(itm.Lastaccess)
-        itm.Unlock()
+	itm.Unlock()
 	sec, err := strconv.Atoi(fmt.Sprintf("%0.0f", dur.Seconds()))
 	if err != nil {
 		return true
@@ -309,13 +324,15 @@ func (cache *FileCache) Active() bool {
 
 // Size returns the number of entries in the cache.
 func (cache *FileCache) Size() int {
-        cache.lock()
-        defer cache.unlock()
+	cache.lock()
+	defer cache.unlock()
 	return len(cache.items)
 }
 
 // FileSize returns the sum of the file sizes stored in the cache
 func (cache *FileCache) FileSize() (totalSize int64) {
+	cache.lock()
+	defer cache.unlock()
 	for _, itm := range cache.items {
 		totalSize += itm.Size
 	}
@@ -325,6 +342,12 @@ func (cache *FileCache) FileSize() (totalSize int64) {
 // StoredFiles returns the list of files stored in the cache.
 func (cache *FileCache) StoredFiles() (fileList []string) {
 	fileList = make([]string, 0)
+	if cache.isCacheNull() {
+		return
+	}
+
+	cache.lock()
+	defer cache.unlock()
 	for name, _ := range cache.items {
 		fileList = append(fileList, name)
 	}
@@ -500,6 +523,7 @@ func (cache *FileCache) CacheNow(name string) (err error) {
 func (cache *FileCache) Start() error {
 	if cache.in != nil {
 		close(cache.in)
+		close(cache.shutdown)
 	}
 	dur, err := time.ParseDuration(fmt.Sprintf("%ds", cache.Every))
 	if err != nil {
@@ -508,6 +532,7 @@ func (cache *FileCache) Start() error {
 	cache.dur = dur
 	cache.items = make(map[string]*cacheItem, 0)
 	cache.in = make(chan string, NewCachePipeSize)
+	cache.shutdown = make(chan interface{}, 1)
 	go cache.itemListener()
 	go cache.vacuum()
 	return nil
@@ -521,16 +546,20 @@ func (cache *FileCache) Start() error {
 func (cache *FileCache) Stop() {
 	if cache.in != nil {
 		close(cache.in)
+		close(cache.shutdown)
+                <-time.After(1 * time.Microsecond)      // give goroutines time to shutdown
 	}
+
 	if cache.items != nil {
-                items := cache.StoredFiles()
+		items := cache.StoredFiles()
 		for _, name := range items {
 			cache.deleteItem(name)
 		}
-                cache.lock()
+		cache.lock()
 		cache.items = nil
-                cache.unlock()
+		cache.unlock()
 	}
+        cache.wait.Wait()
 }
 
 // RemoveItem immediately removes the item from the cache if it is present.
