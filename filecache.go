@@ -169,10 +169,10 @@ func (cache *FileCache) expire_oldest(force bool) {
 	}
 }
 
-// vaccuum is a background goroutine responsible for cleaning the cache.
+// vacuum is a background goroutine responsible for cleaning the cache.
 // It runs periodically, every cache.Every seconds. If cache.Every is set
 // to 0, it will not run.
-func (cache *FileCache) vaccuum() {
+func (cache *FileCache) vacuum() {
 	if cache.Every < 1 {
 		return
 	}
@@ -444,7 +444,7 @@ func (cache *FileCache) Start() error {
 	cache.items = make(map[string]*cacheItem, 0)
 	cache.in = make(chan string, NewCachePipeSize)
 	go cache.item_listener()
-	go cache.vaccuum()
+	go cache.vacuum()
 	return nil
 }
 
