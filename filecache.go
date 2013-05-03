@@ -337,8 +337,8 @@ func (cache *FileCache) FileSize() (totalSize int64) {
 
 // StoredFiles returns the list of files stored in the cache.
 func (cache *FileCache) StoredFiles() (fileList []string) {
-	fileList = make([]string, 0)
-	if cache.isCacheNull() {
+	fileList = make([]string, 0, cache.Size())
+	if cache.isCacheNull() || cap(fileList) == 0 {
 		return
 	}
 
