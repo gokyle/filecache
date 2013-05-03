@@ -468,10 +468,11 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 		if mtype != "" && mtype != ctype {
 			ctype = mtype
 		}
-		w.Header().Set("content-length", fmt.Sprintf("%d", itm.Size))
-		w.Header().Set("content-disposition",
+                header := w.Header()
+		header.Set("content-length", fmt.Sprintf("%d", itm.Size))
+		header.Set("content-disposition",
 			fmt.Sprintf("filename=%s", filepath.Base(path)))
-		w.Header().Set("content-type", ctype)
+		header.Set("content-type", ctype)
 		w.Write(itm.Access())
 		return
 	}
