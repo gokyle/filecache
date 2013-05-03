@@ -48,23 +48,17 @@ var NewCachePipeSize = 4
 
 type cacheItem struct {
 	content    []byte
-	lock       *sync.Mutex
+	lock       sync.Mutex
 	Size       int64
 	Lastaccess time.Time
 	Modified   time.Time
 }
 
 func (itm *cacheItem) Lock() {
-	if itm.lock == nil {
-		return
-	}
 	itm.lock.Lock()
 }
 
 func (itm *cacheItem) Unlock() {
-	if itm.lock == nil {
-		return
-	}
 	itm.lock.Unlock()
 }
 
@@ -103,7 +97,6 @@ func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
 
 	itm = &cacheItem{
 		content:    content,
-		lock:       new(sync.Mutex),
 		Size:       fi.Size(),
 		Modified:   fi.ModTime(),
 		Lastaccess: time.Now(),
@@ -118,7 +111,7 @@ type FileCache struct {
 	dur        time.Duration
 	items      map[string]*cacheItem
 	in         chan string
-	mutex      *sync.Mutex
+	mutex      sync.Mutex
 	shutdown   chan interface{}
 	wait       sync.WaitGroup
 	MaxItems   int   // Maximum number of files to cache
@@ -133,7 +126,6 @@ func NewDefaultCache() *FileCache {
 		dur:        time.Since(time.Now()),
 		items:      nil,
 		in:         nil,
-		mutex:      new(sync.Mutex),
 		MaxItems:   DefaultMaxItems,
 		MaxSize:    DefaultMaxSize,
 		ExpireItem: DefaultExpireItem,
