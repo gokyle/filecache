@@ -54,17 +54,9 @@ type cacheItem struct {
 	Modified   time.Time
 }
 
-func (itm *cacheItem) Lock() {
-	itm.lock.Lock()
-}
-
-func (itm *cacheItem) Unlock() {
-	itm.lock.Unlock()
-}
-
 func (itm *cacheItem) WasModified(fi os.FileInfo) bool {
-	itm.Lock()
-	defer itm.Unlock()
+	itm.lock.Lock()
+	defer itm.lock.Unlock()
 	return itm.Modified.Equal(fi.ModTime())
 }
 
@@ -74,15 +66,15 @@ func (itm *cacheItem) GetReader() io.Reader {
 }
 
 func (itm *cacheItem) Access() []byte {
-	itm.Lock()
-	defer itm.Unlock()
+	itm.lock.Lock()
+	defer itm.lock.Unlock()
 	itm.Lastaccess = time.Now()
 	return itm.content
 }
 
 func (itm *cacheItem) Dur() time.Duration {
-        itm.Lock()
-        defer itm.Unlock()
+        itm.lock.Lock()
+        defer itm.lock.Unlock()
         return time.Now().Sub(itm.Lastaccess)
 }
 
