@@ -80,6 +80,12 @@ func (itm *cacheItem) Access() []byte {
 	return itm.content
 }
 
+func (itm *cacheItem) Dur() time.Duration {
+        itm.Lock()
+        defer itm.Unlock()
+        return time.Now().Sub(itm.Lastaccess)
+}
+
 func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -284,9 +290,7 @@ func (cache *FileCache) expired(name string) bool {
 	if !ok {
 		return true
 	}
-	itm.Lock()
-	dur := time.Now().Sub(itm.Lastaccess)
-	itm.Unlock()
+	dur := itm.Dur()
 	sec, err := strconv.Atoi(fmt.Sprintf("%0.0f", dur.Seconds()))
 	if err != nil {
 		return true
