@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net/http"
 	"net/url"
@@ -73,33 +72,9 @@ func (itm *cacheItem) Access() []byte {
 }
 
 func (itm *cacheItem) Dur() time.Duration {
-        itm.lock.Lock()
-        defer itm.lock.Unlock()
-        return time.Now().Sub(itm.Lastaccess)
-}
-
-func cacheFile(path string, maxSize int64) (itm *cacheItem, err error) {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return
-	} else if fi.Mode().IsDir() {
-		return nil, ItemIsDirectory
-	} else if fi.Size() > maxSize {
-		return nil, ItemTooLarge
-	}
-
-	content, err := ioutil.ReadFile(path)
-	if err != nil {
-		return
-	}
-
-	itm = &cacheItem{
-		content:    content,
-		Size:       fi.Size(),
-		Modified:   fi.ModTime(),
-		Lastaccess: time.Now(),
-	}
-	return
+	itm.lock.Lock()
+	defer itm.lock.Unlock()
+	return time.Now().Sub(itm.Lastaccess)
 }
 
 // FileCache represents a cache in memory.
@@ -395,25 +370,6 @@ func (cache *FileCache) GetItemString(name string) (content string, ok bool) {
 	return
 }
 
-// ReadFile retrieves the file named by 'name'.
-// If the file is not in the cache, load the file and cache the file in the
-// background. If the file was not in the cache and the read was successful,
-// the error ItemNotInCache is returned to indicate that the item was pulled
-// from the filesystem and not the cache, unless the SquelchItemNotInCache
-// global option is set; in that case, returns no error.
-func (cache *FileCache) ReadFile(name string) (content []byte, err error) {
-	if cache.InCache(name) {
-		content, _ = cache.GetItem(name)
-	} else {
-		go cache.Cache(name)
-		content, err = ioutil.ReadFile(name)
-		if err == nil && !SquelchItemNotInCache {
-			err = ItemNotInCache
-		}
-	}
-	return
-}
-
 // ReadFileString is the same as ReadFile, except returning a string.
 func (cache *FileCache) ReadFileString(name string) (content string, err error) {
 	raw, err := cache.ReadFile(name)
@@ -468,7 +424,7 @@ func (cache *FileCache) HttpWriteFile(w http.ResponseWriter, r *http.Request) {
 		if mtype != "" && mtype != ctype {
 			ctype = mtype
 		}
-                header := w.Header()
+		header := w.Header()
 		header.Set("content-length", fmt.Sprintf("%d", itm.Size))
 		header.Set("content-disposition",
 			fmt.Sprintf("filename=%s", filepath.Base(path)))
